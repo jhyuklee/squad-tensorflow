@@ -1,3 +1,1 @@
 # SQuAD-tensorflow
-#
-# Hello world
