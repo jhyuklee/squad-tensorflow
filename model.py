@@ -23,25 +23,28 @@ class RNN(object):
         self.max_grad = params['max_grad']
 
         # rnn parameters
-        self.max_time_step = params['max_time_step']
+        self.max_question_len = params['max_question_len']
+        self.max_passage_len = params['max_passage_len']
+        self.max_answer_len = params['max_answer_len']
         self.cell_layer_num = params['lstm_layer']
-        self.dim_embed_unigram = params['dim_embed_unigram']
+        self.dim_question = params['dim_question'] 
+        self.dim_passage = params['dim_passage'] 
+        self.dim_embed_word = params['dim_embed_word']
         self.dim_hidden = params['dim_hidden']
         self.dim_rnn_cell = params['dim_rnn_cell']
-        self.dim_unigram = params['dim_unigram'] 
         self.dim_output = params['dim_output']
-        self.ngram = params['ngram']
         self.embed = params['embed']
         self.embed_trainable = params['embed_trainable']
         self.checkpoint_dir = params['checkpoint_dir']
         self.initializer = initializer
 
         # input data placeholders
-        self.unigram = tf.placeholder(tf.int32, [None, self.max_time_step])
-        self.bigram = tf.placeholder(tf.int32, [None, self.max_time_step])
-        self.trigram = tf.placeholder(tf.int32, [None, self.max_time_step])
-        self.lengths = tf.placeholder(tf.int32, [None])
-        self.labels = tf.placeholder(tf.int32, [None])
+        self.question = tf.placeholder(tf.int32, [None, self.max_question_len])
+        self.passage = tf.placeholder(tf.int32, [None, self.max_passage_len])
+        self.answer = tf.placeholder(tf.int32, [None])
+        self.len_question = tf.placeholder(tf.int32, [None])
+        self.len_passage = tf.placeholder(tf.int32, [None])
+        self.len_answer = tf.placeholder(tf.int32, [None])
         self.lstm_dropout = tf.placeholder(tf.float32)
         self.hidden_dropout = tf.placeholder(tf.float32)
 
@@ -71,34 +74,44 @@ class RNN(object):
             print(unigram_embed.eval(session=self.session))
         '''
 
-    def ngram_logits(self, inputs, length, dim_input, dim_embed=None, 
-            initializer=None, trainable=True, scope='ngram'):
+    def encode(self, inputs, length, max_length, dim_input, dim_embed, 
+            initializer=None, trainable=True, scope='encoding'):
         with tf.variable_scope(scope) as scope: 
             fw_cell = lstm_cell(self.dim_rnn_cell, self.cell_layer_num, self.lstm_dropout)
             bw_cell = lstm_cell(self.dim_rnn_cell, self.cell_layer_num, self.lstm_dropout)
             
-            if dim_embed is not None:
-                inputs_embed, self.projector = embedding_lookup(inputs, 
-                        dim_input, dim_embed, self.checkpoint_dir, self.embed_config, 
-                        draw=True, initializer=initializer, trainable=trainable, scope=scope)
-                inputs_reshape = rnn_reshape(inputs_embed, dim_embed, self.max_time_step)
-                self.projector.visualize_embeddings(self.embed_writer, self.embed_config)
-            else:
-                inputs_reshape = rnn_reshape(tf.one_hot(inputs, dim_input), dim_input, self.max_time_step)
-            
-            outputs = rnn_model(inputs_reshape, length, fw_cell, self.params)
+            inputs_embed, self.projector = embedding_lookup(inputs, 
+                    dim_input, dim_embed, self.checkpoint_dir, self.embed_config, 
+                    draw=True, initializer=initializer, trainable=trainable, scope=scope)
+            inputs_reshape = rnn_reshape(inputs_embed, dim_embed, max_length) 
+            outputs = rnn_model(inputs_reshape, length, max_length, fw_cell, self.params)
             return outputs
+
 
     def build_model(self):
         print("## Building an RNN model")
 
-        unigram_logits = self.ngram_logits(inputs=self.unigram, 
-                length=self.lengths, 
-                dim_input=self.dim_unigram,
+        question_encoded = self.encode(inputs=self.question,
+                length=self.len_question,
+                max_length=self.max_question_len,
+                dim_input=self.dim_question,
+                dim_embed=self.dim_embed_word,
                 trainable=self.embed_trainable,
-                scope='Unigram')
+                scope='Question')
 
-        hidden1 = linear(inputs=unigram_logits, 
+        passage_encoded = self.encode(inputs=self.passage,
+                length=self.len_passage,
+                max_length=self.max_passage_len,
+                dim_input=self.dim_passage,
+                dim_embed=self.dim_embed_word,
+                trainable=self.embed_trainable,
+                scope='Passage')
+        print('Q', question_encoded)
+        print('P', passage_encoded)
+
+        cct = tf.concat(axis=1, values=[question_encoded, question_encoded])
+
+        hidden1 = linear(inputs=cct,
                 output_dim=self.dim_hidden,
                 dropout_rate=self.hidden_dropout,
                 activation=tf.nn.relu,
@@ -110,7 +123,7 @@ class RNN(object):
 
         self.logits = logits 
         self.losses = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits,
-            labels=self.labels))
+            labels=self.answer))
 
         tf.summary.scalar('Loss', self.losses)
         self.variables = tf.trainable_variables()

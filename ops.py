@@ -35,8 +35,7 @@ def rnn_reshape(inputs, input_dim, max_time_step):
         return inputs_tr_reshape_split
 
 
-def rnn_model(inputs, input_len, cell, params):
-    max_time_step = params['max_time_step']
+def rnn_model(inputs, input_len, max_time_step, cell, params):
     dim_rnn_cell = params['dim_rnn_cell']
     with tf.variable_scope('RNN') as scope:
         outputs, state = tf.contrib.rnn.static_rnn(cell, inputs, sequence_length=input_len, dtype=tf.float32, scope=scope)
