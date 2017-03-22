@@ -107,7 +107,7 @@ def preprocess(dataset, dictionary, c_maxlen, q_maxlen):
             cqa_item = {}
             cqa_item['c'], cqa_item['c_len'] = word2idx(context, dictionary, c_maxlen)
             if d_idx == 0 and p_idx == 0:
-                print(context)
+                # print(context)
                 pass
             qa_set = []
             for qa in paragraph['qas']:
@@ -115,17 +115,17 @@ def preprocess(dataset, dictionary, c_maxlen, q_maxlen):
                 question = qa['question']
                 answers = qa['answers']
                 qa_item['q'], qa_item['q_len'] = word2idx(question, dictionary, q_maxlen)
-                qa_item['a'] = answers[0]['answer_start']
+                qa_item['a'] = len(tokenize(context[:answers[0]['answer_start']]))
                 qa_set.append(qa_item)
                 if d_idx == 0 and p_idx == 0:
-                    print(question)
-                    print(answers)
+                    # print(question)
+                    # print(answers)
                     pass
             cqa_item['qa'] = qa_set
             cqa_set.append(cqa_item)
 
-    print('\nis preprocessed as \n')
-    print(cqa_set[0])
+    # print('\nis preprocessed as \n')
+    # print(cqa_set[0])
 
     return cqa_set
 

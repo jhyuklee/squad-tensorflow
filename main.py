@@ -20,7 +20,7 @@ flags.DEFINE_integer("max_answer_len", 60, "Maximum time step of answer")
 flags.DEFINE_integer("min_voca", 3, "Minimum frequency of word")
 flags.DEFINE_integer("min_grad", -5, "Minimum gradient to clip")
 flags.DEFINE_integer("max_grad", 5, "Maximum gradient to clip")
-flags.DEFINE_integer("batch_size", 300, "Size of batch")
+flags.DEFINE_integer("batch_size", 50, "Size of batch")
 flags.DEFINE_integer("dim_rnn_cell", 200, "Dimension of RNN cell")
 flags.DEFINE_integer("dim_hidden", 200, "Dimension of hidden layer")
 flags.DEFINE_integer("lstm_layer", 1, "Layer number of RNN ")
@@ -89,6 +89,7 @@ def main(_):
     saved_params['context_maxlen'] = c_maxlen
     saved_params['question_maxlen'] = q_maxlen
     saved_params['dim_word'] = len(dictionary)
+    saved_params['dim_output'] = c_maxlen
 
     # Copy params, ready for validation
     # TODO: Validation parameters

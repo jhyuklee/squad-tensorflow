@@ -22,7 +22,17 @@ def train(model, params, dataset):
                 batch_question = np.array([q for _, _, q, _, _ in mini_batch])
                 batch_question_len = np.array([q_len for _, _, _, q_len, _ in mini_batch])
                 batch_answer = np.array([a for _, _, _, _, a in mini_batch])
-                # print(batch_context.shape, batch_question.shape,batch_answer.shape)
+
+                """
+                # Debugging
+                print(batch_context.shape, batch_context_len.shape, 
+                        batch_question.shape, batch_question_len.shape, batch_answer.shape)
+                print('c', batch_context[0])
+                print('c_len', batch_context_len[0])
+                print('q', batch_question[0])
+                print('q_len', batch_question_len[0])
+                print('a', batch_answer[0])
+                """
 
                 feed_dict = {model.context: batch_context,
                         model.context_len: batch_context_len,
@@ -34,6 +44,7 @@ def train(model, params, dataset):
                 _, loss = sess.run([model.optimize, model.loss], feed_dict=feed_dict)
                 mini_batch = []
 
+                # TODO: Evaluate f1 and em
                 if dataset_idx % 5 == 0:
                     print("loss: %.3f, f1: %.3f, em: %.3f" % (loss, 0, 0))
 
