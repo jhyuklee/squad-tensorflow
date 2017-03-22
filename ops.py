@@ -40,8 +40,11 @@ def rnn_model(inputs, input_len, max_time_step, cell, params):
     with tf.variable_scope('RNN') as scope:
         outputs, state = tf.contrib.rnn.static_rnn(cell, inputs, sequence_length=input_len, dtype=tf.float32, scope=scope)
         outputs = tf.transpose(tf.stack(outputs), [1, 0, 2])
-        spread_len = tf.range(0, tf.shape(input_len)[0]) * max_time_step + (input_len - 1)
-        gathered_outputs = tf.gather(tf.reshape(outputs, [-1, dim_rnn_cell]), spread_len)
+        # spread_len = tf.range(0, tf.shape(input_len)[0]) * max_time_step + (input_len - 1)
+        # gathered_outputs = tf.gather(tf.reshape(outputs, [-1, dim_rnn_cell]), spread_len)
+
+        indices = tf.concat(axis=1, values=[tf.expand_dims(tf.range(0, tf.shape(input_len)[0]), 1), tf.expand_dims(input_len-1, 1)])
+        gathered_outputs = tf.gather_nd(outputs, indices)
         return gathered_outputs
 
 

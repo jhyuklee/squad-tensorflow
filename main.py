@@ -13,8 +13,6 @@ from run import train, test
 flags = tf.app.flags
 flags.DEFINE_integer('train_epoch', 10, 'Training epoch')
 flags.DEFINE_integer("dim_embed_word", 200, "Dimension of word embedding")
-flags.DEFINE_integer("dim_question", 300, "Dimension of question")
-flags.DEFINE_integer("dim_passage", 300, "Dimension of passage")
 flags.DEFINE_integer("dim_output", 100, "Dimension of output")
 flags.DEFINE_integer("max_question_len", 60, "Maximum time step of question")
 flags.DEFINE_integer("max_passage_len", 60, "Maximum time step of passage")
@@ -47,8 +45,12 @@ def run(model, params, train_dataset, dev_dataset):
     max_em = max_f1 = max_point = 0
     train_epoch = params['train_epoch']
 
+    print('### Training ###')
     for epoch_idx in range(train_epoch):
+        print("\nEpoch %d" % (epoch_idx + 1))
         train(model, params, train_dataset)
+    
+    print('### Testing ###')
     test(model, params, dev_dataset)
 
     model.reset_graph() 
@@ -81,9 +83,12 @@ def main(_):
         - title
     """
     # Preprocess dataset
-    dictionary = build_dictionary(train_dataset, saved_params)
-    train_dataset = preprocess(train_dataset, dictionary)
-    dev_dataset = preprocess(dev_dataset, dictionary)
+    dictionary, c_maxlen, q_maxlen = build_dictionary(train_dataset, saved_params)
+    train_dataset = preprocess(train_dataset, dictionary, c_maxlen, q_maxlen)
+    dev_dataset = preprocess(dev_dataset, dictionary, c_maxlen, q_maxlen)
+    saved_params['context_maxlen'] = c_maxlen
+    saved_params['question_maxlen'] = q_maxlen
+    saved_params['dim_word'] = len(dictionary)
 
     # Copy params, ready for validation
     # TODO: Validation parameters
