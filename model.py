@@ -39,7 +39,8 @@ class RNN(object):
         # input data placeholders
         self.context = tf.placeholder(tf.int32, [None, self.context_maxlen])
         self.question = tf.placeholder(tf.int32, [None, self.question_maxlen])
-        self.answer = tf.placeholder(tf.int32, [None])
+        self.answer_start = tf.placeholder(tf.int32, [None])
+        self.answer_end = tf.placeholder(tf.int32, [None])
         self.question_len = tf.placeholder(tf.int32, [None])
         self.context_len = tf.placeholder(tf.int32, [None])
         self.lstm_dropout = tf.placeholder(tf.float32)
@@ -54,7 +55,8 @@ class RNN(object):
         self.optimize = None
         self.saver = None
         self.loss = None
-        self.logits = None
+        self.start_logits = None
+        self.end_logits = None
 
         # model build
         self.merged_summary = None
@@ -64,9 +66,9 @@ class RNN(object):
         self.build_model()
         self.session.run(tf.global_variables_initializer())
        
-        # debug initializer
         '''
-        with tf.variable_scope('Unigram', reuse=True):
+        # debug initializer
+        with tf.variable_scope('Scope_here', reuse=True):
             variable_here = tf.get_variable("name_here", [shape_here], dtype=tf.float32)
             print(variable_here.eval(session=self.session))
         '''
@@ -114,14 +116,17 @@ class RNN(object):
                 activation=tf.nn.relu,
                 scope='Hidden1')
 
-        logits = linear(inputs=hidden1,
+        self.start_logits = linear(inputs=hidden1,
             output_dim=self.dim_output, 
-            scope='Output')
+            scope='Output_s')
 
-        self.logits = logits 
-        self.loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits,
-            labels=self.answer))
+        self.end_logits = linear(inputs=hidden1,
+            output_dim=self.dim_output, 
+            scope='Output_e')
 
+        start_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=start_logits, labels=self.answer_start)) 
+        end_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=end_logits, labels=self.answer_end))
+        self.loss = start_loss + end_loss
         tf.summary.scalar('Loss', self.loss)
         self.variables = tf.trainable_variables()
 

@@ -32,7 +32,7 @@ def tokenize(words):
     return words.lower().split(' ')
 
 
-def word2idx(words, dictionary, max_length):
+def word2idx(words, dictionary, max_length=None):
     result_idx = []
     for word in tokenize(words):
         if word not in dictionary:
@@ -41,8 +41,9 @@ def word2idx(words, dictionary, max_length):
             result_idx.append(dictionary[word])
 
     original_len = len(result_idx)
-    while len(result_idx) < max_length:
-        result_idx.append(dictionary['PAD'])
+    if max_length is not None:
+        while len(result_idx) < max_length:
+            result_idx.append(dictionary['PAD'])
 
     return result_idx, original_len
 
@@ -115,7 +116,9 @@ def preprocess(dataset, dictionary, c_maxlen, q_maxlen):
                 question = qa['question']
                 answers = qa['answers']
                 qa_item['q'], qa_item['q_len'] = word2idx(question, dictionary, q_maxlen)
-                qa_item['a'] = len(tokenize(context[:answers[0]['answer_start']]))
+                qa_item['a_start'] = len(tokenize(context[:answers[0]['answer_start']]))
+                qa_item['a_end'] = qa_item['a_start'] + len(tokenize(answers[0]['text'])) - 1
+                qa_item['a'], _ = word2idx(answers[0]['text'], dictionary)
                 qa_set.append(qa_item)
                 if d_idx == 0 and p_idx == 0:
                     # print(question)
