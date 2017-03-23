@@ -58,12 +58,15 @@ def word2cnt(words, counter):
 
 def build_dictionary(dataset, params):
     dictionary = {}
+    reverse_dictionary = {}
     counter = {}
     context_maxlen = 0
     question_maxlen = 0
     answer_maxlen = 0
     dictionary['UNK'] = 0
     dictionary['PAD'] = 1
+    reverse_dictionary[0] = 'UNK'
+    reverse_dictionary[1] = 'PAD'
     
     for d_idx, document in enumerate(dataset):
         for p_idx, paragraph in enumerate(document['paragraphs']):
@@ -92,11 +95,12 @@ def build_dictionary(dataset, params):
     for key, value in counter.items():
         if value > params['min_voca']:
             dictionary[key] = len(dictionary)
+            reverse_dictionary[dictionary[key]] = key
     print('Dictionary size', len(dictionary))
     print([(k, dictionary[k]) for k in sorted(dictionary, key=dictionary.get)[:20]])
     print('Maxlen of C:%d, Q:%d, A:%d' % (context_maxlen, question_maxlen, answer_maxlen))
 
-    return dictionary, context_maxlen, question_maxlen
+    return dictionary, reverse_dictionary, context_maxlen, question_maxlen
 
 
 def preprocess(dataset, dictionary, c_maxlen, q_maxlen):
@@ -106,6 +110,7 @@ def preprocess(dataset, dictionary, c_maxlen, q_maxlen):
         for p_idx, paragraph in enumerate(document['paragraphs']):
             context = paragraph['context']
             cqa_item = {}
+            cqa_item['c_raw'] = tokenize(context)
             cqa_item['c'], cqa_item['c_len'] = word2idx(context, dictionary, c_maxlen)
             if d_idx == 0 and p_idx == 0:
                 # print(context)
@@ -118,7 +123,7 @@ def preprocess(dataset, dictionary, c_maxlen, q_maxlen):
                 qa_item['q'], qa_item['q_len'] = word2idx(question, dictionary, q_maxlen)
                 qa_item['a_start'] = len(tokenize(context[:answers[0]['answer_start']]))
                 qa_item['a_end'] = qa_item['a_start'] + len(tokenize(answers[0]['text'])) - 1
-                qa_item['a'], _ = word2idx(answers[0]['text'], dictionary)
+                qa_item['a'] = [a['text'] for a in answers]
                 qa_set.append(qa_item)
                 if d_idx == 0 and p_idx == 0:
                     # print(question)

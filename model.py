@@ -124,8 +124,8 @@ class RNN(object):
             output_dim=self.dim_output, 
             scope='Output_e')
 
-        start_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=start_logits, labels=self.answer_start)) 
-        end_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=end_logits, labels=self.answer_end))
+        start_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=self.start_logits, labels=self.answer_start)) 
+        end_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=self.end_logits, labels=self.answer_end))
         self.loss = start_loss + end_loss
         tf.summary.scalar('Loss', self.loss)
         self.variables = tf.trainable_variables()

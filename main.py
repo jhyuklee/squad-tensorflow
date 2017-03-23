@@ -20,13 +20,13 @@ flags.DEFINE_integer("max_answer_len", 60, "Maximum time step of answer")
 flags.DEFINE_integer("min_voca", 3, "Minimum frequency of word")
 flags.DEFINE_integer("min_grad", -5, "Minimum gradient to clip")
 flags.DEFINE_integer("max_grad", 5, "Maximum gradient to clip")
-flags.DEFINE_integer("batch_size", 50, "Size of batch")
+flags.DEFINE_integer("batch_size", 150, "Size of batch")
 flags.DEFINE_integer("dim_rnn_cell", 200, "Dimension of RNN cell")
 flags.DEFINE_integer("dim_hidden", 200, "Dimension of hidden layer")
 flags.DEFINE_integer("lstm_layer", 1, "Layer number of RNN ")
 flags.DEFINE_float("lstm_dropout", 0.5, "Dropout of RNN cell")
 flags.DEFINE_float("hidden_dropout", 0.5, "Dropout rate of hidden layer")
-flags.DEFINE_float("learning_rate", 0.01, "Learning rate of the optimzier")
+flags.DEFINE_float("learning_rate", 0.001, "Learning rate of the optimzier")
 flags.DEFINE_float("decay_rate", 0.99, "Decay rate of learning rate")
 flags.DEFINE_float("decay_step", 100, "Decay step of learning rate")
 flags.DEFINE_boolean("embed", True, "True to embed words")
@@ -48,10 +48,10 @@ def run(model, params, train_dataset, dev_dataset):
     print('### Training ###')
     for epoch_idx in range(train_epoch):
         print("\nEpoch %d" % (epoch_idx + 1))
-        train(model, params, train_dataset)
+        train(model, train_dataset, params)
     
     print('### Testing ###')
-    test(model, params, dev_dataset)
+    test(model, dev_dataset, params)
 
     model.reset_graph() 
 
@@ -83,7 +83,7 @@ def main(_):
         - title
     """
     # Preprocess dataset
-    dictionary, c_maxlen, q_maxlen = build_dictionary(train_dataset, saved_params)
+    dictionary, reverse_dictionary, c_maxlen, q_maxlen = build_dictionary(train_dataset, saved_params)
     train_dataset = preprocess(train_dataset, dictionary, c_maxlen, q_maxlen)
     dev_dataset = preprocess(dev_dataset, dictionary, c_maxlen, q_maxlen)
     saved_params['context_maxlen'] = c_maxlen
