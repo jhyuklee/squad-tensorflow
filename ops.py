@@ -12,23 +12,12 @@ def dropout(x, keep_prob):
 def lstm_cell(cell_dim, layer_num, keep_prob):
     with tf.variable_scope('LSTM_Cell') as scope:
         cell = tf.contrib.rnn.BasicLSTMCell(cell_dim, forget_bias=1.0, activation=tf.tanh, state_is_tuple=True)
-        # cell = AttentionCellWrapper(cell, 10, state_is_tuple=True)
         cell = tf.contrib.rnn.DropoutWrapper(cell, output_keep_prob=keep_prob)
         return tf.contrib.rnn.MultiRNNCell([cell] * layer_num, state_is_tuple=True)
 
 
 def rnn_reshape(inputs, input_dim, max_time_step):
     with tf.variable_scope('Reshape') as scope:
-        """
-        reshape inputs from [batch_size, max_time_step, input_dim] to [max_time_step * (batch_size, input_dim)]
-
-        :param inputs: inputs of shape [batch_size, max_time_step, input_dim]
-        :param input_dim: dimension of input
-        :param max_time_step: max of time step
-
-        :return:
-            outputs of shape [max_time_step * (batch_size, input_dim)]
-        """
         inputs_tr = tf.transpose(inputs, [1, 0, 2])
         inputs_tr_reshape = tf.reshape(inputs_tr, [-1, input_dim])
         inputs_tr_reshape_split = tf.split(axis=0, num_or_size_splits=max_time_step, value=inputs_tr_reshape)
@@ -40,9 +29,6 @@ def rnn_model(inputs, input_len, max_time_step, cell, params):
     with tf.variable_scope('RNN') as scope:
         outputs, state = tf.contrib.rnn.static_rnn(cell, inputs, sequence_length=input_len, dtype=tf.float32, scope=scope)
         outputs = tf.transpose(tf.stack(outputs), [1, 0, 2])
-        # spread_len = tf.range(0, tf.shape(input_len)[0]) * max_time_step + (input_len - 1)
-        # gathered_outputs = tf.gather(tf.reshape(outputs, [-1, dim_rnn_cell]), spread_len)
-
         indices = tf.concat(axis=1, values=[tf.expand_dims(tf.range(0, tf.shape(input_len)[0]), 1), tf.expand_dims(input_len-1, 1)])
         gathered_outputs = tf.gather_nd(outputs, indices)
         return gathered_outputs
@@ -56,9 +42,10 @@ def bi_rnn_model(inputs, input_len, fw_cell, bw_cell):
         return outputs
 
 
-def embedding_lookup(inputs, voca_size, embedding_dim, visual_dir, config, draw=False,
-        initializer=None, trainable=True, scope='Embedding'):
-    with tf.variable_scope(scope) as scope:
+def embedding_lookup(inputs, voca_size, embedding_dim, initializer=None, trainable=True,
+        draw=False, visual_dir=None, config=None, 
+        reuse=False, scope='Embedding'):
+    with tf.variable_scope(scope, reuse=reuse) as scope:
         if initializer is not None:
             embedding_table = tf.get_variable("embed",
                     initializer=initializer, trainable=trainable, dtype=tf.float32)
@@ -74,7 +61,7 @@ def embedding_lookup(inputs, voca_size, embedding_dim, visual_dir, config, draw=
             embedding.metadata_path = os.path.join(visual_dir, '%s_metadata.tsv'%scope.name)
             return inputs_embed, projector
         else:
-            return inputs_embed, None
+            return inputs_embed
 
 
 def mask_by_index(batch_size, input_len, max_time_step):
@@ -119,3 +106,4 @@ def variable_summaries(var, name):
         tf.summary.scalar('max/' + name, tf.reduce_max(var))
         tf.summary.scalar('min/' + name, tf.reduce_min(var))
         tf.summary.histogram(name, var)
+

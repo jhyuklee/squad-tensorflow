@@ -4,7 +4,7 @@ import os
 from ops import *
 
 
-class RNN(object):
+class Basic(object):
     def __init__(self, params, initializer):
 
         # session settings
@@ -64,6 +64,8 @@ class RNN(object):
         self.embed_config = projector.ProjectorConfig()
         self.projector = None
         self.build_model()
+        self.optimize_loss(self.start_logits, self.end_logits)
+        self.save_settings()
         self.session.run(tf.global_variables_initializer())
        
         '''
@@ -73,23 +75,27 @@ class RNN(object):
             print(variable_here.eval(session=self.session))
         '''
 
-    def encode(self, inputs, length, max_length, dim_input, dim_embed, 
-            initializer=None, trainable=True, scope='encoding'):
+    def encoder(self, inputs, length, max_length, dim_input, dim_embed, 
+            initializer=None, trainable=True, reuse=False, scope='encoding'):
+        
+        inputs_embed = embedding_lookup(
+                inputs, 
+                dim_input, 
+                dim_embed,
+                initializer=initializer, trainable=trainable, 
+                reuse=reuse, scope='Word')
+
         with tf.variable_scope(scope) as scope: 
             fw_cell = lstm_cell(self.dim_rnn_cell, self.cell_layer_num, self.lstm_dropout)
-            bw_cell = lstm_cell(self.dim_rnn_cell, self.cell_layer_num, self.lstm_dropout)
-            
-            inputs_embed, self.projector = embedding_lookup(inputs, 
-                    dim_input, dim_embed, self.checkpoint_dir, self.embed_config, 
-                    draw=True, initializer=initializer, trainable=trainable, scope=scope)
-            inputs_reshape = rnn_reshape(inputs_embed, dim_embed, max_length) 
+            bw_cell = lstm_cell(self.dim_rnn_cell, self.cell_layer_num, self.lstm_dropout) 
+            inputs_reshape = rnn_reshape(inputs_embed, dim_embed, max_length)
             outputs = rnn_model(inputs_reshape, length, max_length, fw_cell, self.params)
             return outputs
-
+    
 
     def build_model(self):
-        print("## Building an RNN model")
-        context_encoded = self.encode(inputs=self.context,
+        print("###  Building a Basic model ###")
+        context_encoded = self.encoder(inputs=self.context,
                 length=self.context_len,
                 max_length=self.context_maxlen,
                 dim_input=self.dim_word,
@@ -97,16 +103,13 @@ class RNN(object):
                 trainable=self.embed_trainable,
                 scope='Context')
 
-        question_encoded = self.encode(inputs=self.question,
+        question_encoded = self.encoder(inputs=self.question,
                 length=self.question_len,
                 max_length=self.question_maxlen,
                 dim_input=self.dim_word,
                 dim_embed=self.dim_embed_word,
                 trainable=self.embed_trainable,
-                scope='Question')
-
-        print('C', context_encoded)
-        print('Q', question_encoded)
+                reuse=True, scope='Question')
 
         cct = tf.concat(axis=1, values=[context_encoded, question_encoded])
 
@@ -123,21 +126,26 @@ class RNN(object):
         self.end_logits = linear(inputs=hidden1,
             output_dim=self.dim_output, 
             scope='Output_e')
-
-        start_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=self.start_logits, labels=self.answer_start)) 
-        end_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=self.end_logits, labels=self.answer_end))
+    
+    def optimize_loss(self, start_logits, end_logits):
+        start_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
+            logits=self.start_logits, labels=self.answer_start)) 
+        end_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
+            logits=self.end_logits, labels=self.answer_end))
         self.loss = start_loss + end_loss
         tf.summary.scalar('Loss', self.loss)
-        self.variables = tf.trainable_variables()
 
         grads = []
+        self.variables = tf.trainable_variables()
         for grad in tf.gradients(self.loss, self.variables):
             if grad is not None:
                 grads.append(tf.clip_by_value(grad, self.min_grad, self.max_grad))
             else:
                 grads.append(grad)
-        self.optimize = self.optimizer.apply_gradients(zip(grads, self.variables), global_step=self.global_step)
+        self.optimize = self.optimizer.apply_gradients(zip(grads, self.variables), 
+                global_step=self.global_step)
 
+    def save_settings(self):
         model_vars = [v for v in tf.global_variables()]
         print('model variables', [model_var.name for model_var in tf.trainable_variables()])
         self.saver = tf.train.Saver(model_vars)

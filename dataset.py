@@ -3,6 +3,7 @@ import json
 import re
 import gensim
 import datetime
+import string
 
 
 def read_data(dataset_path, version):
@@ -26,7 +27,8 @@ def load_glove(glove_path):
 
 
 def tokenize(words):
-    # TODO: Normalize text
+    exclude = set(string.punctuation)
+    words = ''.join(ch for ch in words if ch not in exclude)
     while '  ' in words:
         words = re.sub(r'\s\s', ' ', words)
     return words.lower().split(' ')
