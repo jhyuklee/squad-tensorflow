@@ -36,7 +36,7 @@ def rnn_model(inputs, input_len, max_time_step, cell, params):
 
 def bi_rnn_model(inputs, input_len, fw_cell, bw_cell):
     with tf.variable_scope('Bi-RNN') as scope:
-        outputs, _, _ = tf.nn.bidirectional_rnn(fw_cell, bw_cell, inputs,
+        outputs, _, _ = tf.contrib.rnn.bidirectional_rnn(fw_cell, bw_cell, inputs,
                 sequence_length=input_len, dtype=tf.float32, scope=scope)
         outputs = tf.transpose(tf.stack(outputs), [1, 0, 2])
         return outputs
