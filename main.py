@@ -7,7 +7,7 @@ import sys
 from model import Basic
 from mpcm import MPCM
 from time import gmtime, strftime
-from dataset import read_data, build_dictionary, preprocess
+from dataset import read_data, build_dictionary, load_glove, preprocess
 from run import train, test
 
 
@@ -17,6 +17,7 @@ flags.DEFINE_integer("dim_embed_word", 200, "Dimension of word embedding")
 flags.DEFINE_integer("min_voca", 3, "Minimum frequency of word")
 flags.DEFINE_integer("min_grad", -5, "Minimum gradient to clip")
 flags.DEFINE_integer("max_grad", 5, "Maximum gradient to clip")
+flags.DEFINE_integer("max_perspective", 50, "Maximum number of perspective")
 flags.DEFINE_integer("batch_size", 150, "Size of batch")
 flags.DEFINE_integer("dim_rnn_cell", 200, "Dimension of RNN cell")
 flags.DEFINE_integer("dim_hidden", 200, "Dimension of hidden layer")
@@ -80,7 +81,9 @@ def main(_):
         - title
     """
     # Preprocess dataset
-    dictionary, reverse_dictionary, c_maxlen, q_maxlen = build_dictionary(train_dataset, saved_params)
+    dictionary, rev_dictionary, c_maxlen, q_maxlen = build_dictionary(train_dataset, saved_params)
+    # pretrained_glove = load_glove(saved_params['glove_path'], dictionary)
+
     train_dataset = preprocess(train_dataset, dictionary, c_maxlen, q_maxlen)
     dev_dataset = preprocess(dev_dataset, dictionary, c_maxlen, q_maxlen)
     saved_params['context_maxlen'] = c_maxlen

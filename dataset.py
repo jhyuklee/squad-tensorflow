@@ -4,6 +4,7 @@ import re
 import gensim
 import datetime
 import string
+import numpy as np
 
 
 def read_data(dataset_path, version):
@@ -17,13 +18,26 @@ def read_data(dataset_path, version):
     return dataset
 
 
-def load_glove(glove_path):
+def load_glove(glove_path, dictionary):
     print('Glove Loading...')
     start_time = datetime.datetime.now()
     glove = gensim.models.Word2Vec.load_word2vec_format(glove_path, binary=False)
     elapsed_time = datetime.datetime.now() - start_time
     print('Glove Loading Done', elapsed_time)
-    return glove
+
+    pretrained_vectors = np.ndarray([len(dictionary), 300], dtype=np.float32)
+    for word, vector in dictionary.items():
+        print(word)
+        if word in glove:
+            print('in glove')
+            np.append(pretrained_vectors, [glove[word]], axis=0)
+        else:
+            print('not in glove')
+            np.append(pretrained_vectors, [np.random.rand(300)])
+    print('Pretrained vectors', pretrained_vectors.shape)
+    print('Pretrained sample', pretrained_vectors[dictionary['UNK']])
+    print('Pretrained sample', pretrained_vectors[dictionary['good']])
+    return pretrained_vectors
 
 
 def tokenize(words):
