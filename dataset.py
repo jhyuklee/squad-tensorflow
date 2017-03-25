@@ -4,6 +4,7 @@ import re
 import gensim
 import datetime
 import string
+import operator
 import numpy as np
 
 
@@ -26,15 +27,15 @@ def load_glove(glove_path, dictionary):
     print('Glove Loading Done', elapsed_time)
 
     pretrained_vectors = np.ndarray([len(dictionary), 300], dtype=np.float32)
-    for word, vector in dictionary.items():
-        print(word)
+    unk_cnt = 0
+    for word, vector in sorted(dictionary.items(), key=operator.itemgetter(1)):
         if word in glove:
-            print('in glove')
-            np.append(pretrained_vectors, [glove[word]], axis=0)
+            pretrained_vectors = np.vstack((pretrained_vectors, [glove[word]]))
         else:
-            print('not in glove')
-            np.append(pretrained_vectors, [np.random.rand(300)])
-    print('Pretrained vectors', pretrained_vectors.shape)
+            unk_cnt += 1
+            pretrained_vectors = np.vstack((pretrained_vectors, [np.random.rand(300)]))
+
+    print('Pretrained vectors', pretrained_vectors.shape, 'unknown', unk_cnt)
     print('Pretrained sample', pretrained_vectors[dictionary['UNK']])
     print('Pretrained sample', pretrained_vectors[dictionary['good']])
     return pretrained_vectors

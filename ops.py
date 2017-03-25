@@ -53,7 +53,7 @@ def embedding_lookup(inputs, voca_size, embedding_dim, initializer=None, trainab
             embedding_table = tf.get_variable("embed", [voca_size, embedding_dim],
                     dtype=tf.float32, trainable=trainable)
         inputs_embed = tf.nn.embedding_lookup(embedding_table, inputs)
-        print(inputs_embed)
+        # print(inputs_embed)
 
         if draw:
             embedding = config.embeddings.add()

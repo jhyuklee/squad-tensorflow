@@ -33,25 +33,67 @@ class MPCM(Basic):
         fw_question, bw_question = tf.split(question, num_or_size_splits=2, axis=2)
         
         def matching_function(v1, v2, W):
-            print('matching function')
-            print(v1, v2, W)
-            print('matching function')
-            print(tf.scan(lambda a, W_k: W_k * v1, W))
-            print('scan WK')
-            return tf.scan(lambda a, W_k: tf.reduce_sum(tf.multiply(W_k * v1, W_k * v2)), W)
+            cos_d = tf.scan(lambda a, W_k: (W_k * v1)*(W_k * v2), W)
+            return tf.reduce_sum(cos_d, axis=1)
 
-        # Full-matching
         W1 = tf.get_variable('W1', [self.max_perspective, self.dim_hidden],
                 initializer=tf.random_normal_initializer())
         W2 = tf.get_variable('W2', [self.max_perspective, self.dim_hidden],
                 initializer=tf.random_normal_initializer())
-        
-        fw_context_group = tf.split(fw_context, num_or_size_splits=self.context_maxlen, axis=1)
-        print('split context', len(fw_context_group), tf.squeeze(fw_context_group[0], [1]))
+        W3 = tf.get_variable('W3', [self.max_perspective, self.dim_hidden],
+                initializer=tf.random_normal_initializer())
+        W4 = tf.get_variable('W4', [self.max_perspective, self.dim_hidden],
+                initializer=tf.random_normal_initializer())
+        W5 = tf.get_variable('W5', [self.max_perspective, self.dim_hidden],
+                initializer=tf.random_normal_initializer())
+        W6 = tf.get_variable('W6', [self.max_perspective, self.dim_hidden],
+                initializer=tf.random_normal_initializer())
+       
+        # Forward matching
+        fw_context_group = tf.split(fw_context, 
+                num_or_size_splits=self.context_maxlen, axis=1)
+        fw_question_group = tf.split(fw_question, 
+                num_or_size_splits=self.question_maxlen, axis=1)
 
-        full_matching = tf.scan(lambda a, h: matching_function(tf.squeeze(h[0], [0]),
-                tf.squeeze(h[1], [0]), W1), fw_context_group)
-        print('perspective', full_matching)
+        for context_word in fw_context_group:
+            context_word = tf.squeeze(context_word, [1])
+            full_list = []
+            max_list = []
+            mean_list = []
+            for question_word in fw_question_group:
+                question_word = tf.squeeze(question_word, [1])
+                init = tf.zeros([self.max_perspective])
+                full_matching = tf.scan(lambda a, w:
+                        matching_function(w[0], w[1], W1), (context_word, question_word), init)
+                max_matching = tf.scan(lambda a, w:
+                        matching_function(w[0], w[1], W3), (context_word, question_word), init)
+                mean_matching = tf.scan(lambda a, w:
+                        matching_function(w[0], w[1], W5), (context_word, question_word), init)
+                full_list.append(full_matching)
+                max_list.append(max_matching)
+                mean_list.append(mean_matching)
+
+        print('forward matching done')
+
+        # Backward matching
+        bw_context_group = tf.split(bw_context, 
+                num_or_size_splits=self.context_maxlen, axis=1)
+        bw_question_group = tf.split(bw_question, 
+                num_or_size_splits=self.question_maxlen, axis=1)
+
+        for context_word in bw_context_group:
+            context_word = tf.squeeze(context_word, [1])    
+            for question_word in bw_question_group:
+                question_word = tf.squeeze(question_word, [1])
+                init = tf.zeros([self.max_perspective])
+                full_matching = tf.scan(lambda a, w:
+                        matching_function(w[0], w[1], W2), (context_word, question_word), init)
+                max_matching = tf.scan(lambda a, w:
+                        matching_function(w[0], w[1], W4), (context_word, question_word), init)
+                mean_matching = tf.scan(lambda a, w:
+                        matching_function(w[0], w[1], W6), (context_word, question_word), init)
+
+        print('backword matching done')
 
         # TODO: Maxpooling-matching
         # TODO: Meanpooling-matching
