@@ -36,77 +36,111 @@ class MPCM(Basic):
             cos_d = tf.scan(lambda a, W_k: (W_k * v1)*(W_k * v2), W)
             return tf.reduce_sum(cos_d, axis=1)
 
-        W1 = tf.get_variable('W1', [self.max_perspective, self.dim_hidden],
+        W_fw = tf.get_variable('W_fw', [self.max_perspective * 3, self.dim_hidden],
                 initializer=tf.random_normal_initializer())
-        W2 = tf.get_variable('W2', [self.max_perspective, self.dim_hidden],
-                initializer=tf.random_normal_initializer())
-        W3 = tf.get_variable('W3', [self.max_perspective, self.dim_hidden],
-                initializer=tf.random_normal_initializer())
-        W4 = tf.get_variable('W4', [self.max_perspective, self.dim_hidden],
-                initializer=tf.random_normal_initializer())
-        W5 = tf.get_variable('W5', [self.max_perspective, self.dim_hidden],
-                initializer=tf.random_normal_initializer())
-        W6 = tf.get_variable('W6', [self.max_perspective, self.dim_hidden],
+        W_bw = tf.get_variable('W_bw', [self.max_perspective * 3, self.dim_hidden],
                 initializer=tf.random_normal_initializer())
        
-        # Forward matching
         fw_context_group = tf.split(fw_context, 
+                num_or_size_splits=self.context_maxlen, axis=1)
+        bw_context_group = tf.split(bw_context, 
                 num_or_size_splits=self.context_maxlen, axis=1)
         fw_question_group = tf.split(fw_question, 
                 num_or_size_splits=self.question_maxlen, axis=1)
-
-        for context_word in fw_context_group:
-            context_word = tf.squeeze(context_word, [1])
-            full_list = []
-            max_list = []
-            mean_list = []
-            for question_word in fw_question_group:
-                question_word = tf.squeeze(question_word, [1])
-                init = tf.zeros([self.max_perspective])
-                full_matching = tf.scan(lambda a, w:
-                        matching_function(w[0], w[1], W1), (context_word, question_word), init)
-                max_matching = tf.scan(lambda a, w:
-                        matching_function(w[0], w[1], W3), (context_word, question_word), init)
-                mean_matching = tf.scan(lambda a, w:
-                        matching_function(w[0], w[1], W5), (context_word, question_word), init)
-                full_list.append(full_matching)
-                max_list.append(max_matching)
-                mean_list.append(mean_matching)
-
-        print('forward matching done')
-
-        # Backward matching
-        bw_context_group = tf.split(bw_context, 
-                num_or_size_splits=self.context_maxlen, axis=1)
         bw_question_group = tf.split(bw_question, 
                 num_or_size_splits=self.question_maxlen, axis=1)
 
-        for context_word in bw_context_group:
-            context_word = tf.squeeze(context_word, [1])    
-            for question_word in bw_question_group:
-                question_word = tf.squeeze(question_word, [1])
-                init = tf.zeros([self.max_perspective])
-                full_matching = tf.scan(lambda a, w:
-                        matching_function(w[0], w[1], W2), (context_word, question_word), init)
-                max_matching = tf.scan(lambda a, w:
-                        matching_function(w[0], w[1], W4), (context_word, question_word), init)
-                mean_matching = tf.scan(lambda a, w:
-                        matching_function(w[0], w[1], W6), (context_word, question_word), init)
+        for c_idx, (fw_ct, bw_ct) in enumerate(zip(fw_context_group, bw_context_group)):
+            fw_ct = tf.squeeze(fw_ct, [1])
+            bw_ct = tf.squeeze(bw_ct, [1])
+            fw_matching_list = []
+            bw_matching_list = []
+            for fw_qu, bw_qu in zip(fw_question_group, bw_question_group):
+                fw_qu = tf.squeeze(fw_qu, [1])
+                bw_qu = tf.squeeze(bw_qu, [1])
+                init = tf.zeros([self.max_perspective * 3])
+                fw_matching = tf.scan(lambda a, w:
+                        matching_function(w[0], w[1], W_fw), (fw_ct, fw_qu), init)
+                bw_matching = tf.scan(lambda a, w:
+                        matching_function(w[0], w[1], W_bw), (bw_ct, bw_qu), init)
+                fw_matching_list.append(fw_matching)
+                bw_matching_list.append(bw_matching)
 
-        print('backword matching done')
+            print('fw, bw processing %d/%d' % (c_idx, len(fw_context_group)))
+            if c_idx >= 9:
+                break
 
-        # TODO: Maxpooling-matching
-        # TODO: Meanpooling-matching
-        
-        return 'matching_layer'
+        print('Matching list size:', len(fw_matching_list), len(bw_matching_list))
+        print('Matching element size:', fw_matching_list[0], bw_matching_list[0])
+       
+        def full_matching(sequence, length):
+            # TODO: gather 0 or max index of sequence
+            """
+            sequence: [batch, context_length, question_length, perspective]
+            length: [batch]
+            """
+            """
+            indices = tf.concat(axis=1, values=[
+                tf.expand_dims(tf.range(0, tf.shape(sequence)[0]), 1),
+                tf.expand_dims(tf.range(0, 10), 1),
+                tf.expand_dims(length - 1, 1)])
+            """
+            return sequence
 
-    def aggregation_layer(self):
+        def max_matching(sequence, length):
+            # TODO: gather maximum between 0 ~ max in sequence
+            return sequence
 
-        return 'aggregation_layer'
+        def mean_matching(sequence, length):
+            # TODO: gather mean of 0 ~ max in sequence
+            return sequence
 
-    def prediction_layer(self):
+        fw_matching_total = tf.transpose(tf.stack(fw_matching_list), [1, 0, 2])
+        bw_matching_total = tf.transpose(tf.stack(bw_matching_list), [1, 0, 2])
+        print('fw matching', fw_matching_total)
+        print('bw matching', bw_matching_total)
+        fw_full, fw_max, fw_mean = tf.split(fw_matching_total, num_or_size_splits=3, axis=2)
+        bw_full, bw_max, bw_mean = tf.split(bw_matching_total, num_or_size_splits=3, axis=2)
+        print(fw_full, fw_max, fw_mean)
+        print(bw_full, bw_max, bw_mean)
+        c_len = 10
+        q_len = self.question_maxlen
+        fw_full = tf.reshape(fw_full, [-1, c_len, q_len * self.max_perspective])
+        # bw_full = tf.reshape(bw_full, [-1, c_len, q_len, self.max_perspective])
+        # fw_mean = tf.reshape(fw_mean, [-1, c_len, q_len, self.max_perspective])
+        # bw_mean = tf.reshape(bw_mean, [-1, c_len, q_len, self.max_perspective])
+        # fw_max = tf.reshape(fw_max, [-1, c_len, q_len, self.max_perspective])
+        # bw_max = tf.reshape(bw_max, [-1, c_len, q_len, self.max_perspective])
+        # print(fw_full, fw_max, fw_mean)
+        # print(bw_full, bw_max, bw_mean)
 
-        return 'prediction'
+        total_matching = tf.concat(axis=1, values=[
+            full_matching(fw_full, self.question_len),
+            full_matching(bw_full, self.question_len),
+            max_matching(fw_max, self.question_len),
+            max_matching(bw_max, self.question_len),
+            mean_matching(fw_mean, self.question_len),
+            mean_matching(bw_mean, self.question_len)])
+
+        return fw_full
+
+    def aggregation_layer(self, inputs, max_length):
+        with tf.variable_scope('Aggregation') as scope:
+            fw_cell = lstm_cell(self.dim_rnn_cell, self.cell_layer_num, self.lstm_dropout)
+            bw_cell = lstm_cell(self.dim_rnn_cell, self.cell_layer_num, self.lstm_dropout)
+            r_inputs = rnn_reshape(inputs, self.max_perspective, max_length)
+            outputs = bi_rnn_model(r_inputs, length, fw_cell, bw_cell)
+            return outputs 
+
+    def prediction_layer(self, inputs):
+        start_logits = linear(inputs=inputs,
+            output_dim=self.dim_output, 
+            scope='Output_s')
+
+        end_logits = linear(inputs=inputs,
+            output_dim=self.dim_output, 
+            scope='Output_e')
+        return start_logits, end_logits
 
     def build_model(self):
         print("## Building MPCM model ###")
@@ -127,16 +161,20 @@ class MPCM(Basic):
                 reuse=True, scope='Word')
 
         context_filtered = self.filter_layer(context_embed, question_embed)
-        print('filter_layer', context_filtered)
+        print('# Filter_layer', context_filtered)
 
         context_rep = self.representation_layer(context_filtered, self.context_len,
                 self.context_maxlen, scope='Context')
         question_rep = self.representation_layer(question_embed, self.question_len,
                 self.question_maxlen, scope='Question')
-        print('representation_layer', context_rep, question_rep)
+        print('# Representation_layer', context_rep, question_rep)
 
         matching_vectors = self.matching_layer(context_rep, question_rep)
+        print('# Matching_layer', matching_vectors)
 
-
-
+        aggregation = self.aggregation_layer(matching_vectors, 10)
+        print('# Aggregation_layer', aggregation)
         
+        self.start_logits, self.end_logits = self.prediction_layer(self, aggregation)
+        print('# Prediction_layer', self.start_logits, self.end_logits)
+ 

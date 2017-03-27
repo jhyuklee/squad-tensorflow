@@ -26,14 +26,19 @@ def load_glove(glove_path, dictionary):
     elapsed_time = datetime.datetime.now() - start_time
     print('Glove Loading Done', elapsed_time)
 
-    pretrained_vectors = np.ndarray([len(dictionary), 300], dtype=np.float32)
+    pretrained_vectors = None
     unk_cnt = 0
     for word, vector in sorted(dictionary.items(), key=operator.itemgetter(1)):
         if word in glove:
-            pretrained_vectors = np.vstack((pretrained_vectors, [glove[word]]))
+            word_vector = glove[word]
         else:
+            word_vector = np.random.rand(300)
             unk_cnt += 1
-            pretrained_vectors = np.vstack((pretrained_vectors, [np.random.rand(300)]))
+
+        if pretrained_vectors is None:
+            pretrained_vectors = [word_vector]
+        else:
+            pretrained_vectors = np.concatenate((pretrained_vectors, [word_vector]), axis=0)
 
     print('Pretrained vectors', pretrained_vectors.shape, 'unknown', unk_cnt)
     print('Pretrained sample', pretrained_vectors[dictionary['UNK']])

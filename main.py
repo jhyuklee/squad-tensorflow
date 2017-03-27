@@ -82,6 +82,7 @@ def main(_):
     """
     # Preprocess dataset
     dictionary, rev_dictionary, c_maxlen, q_maxlen = build_dictionary(train_dataset, saved_params)
+    pretrained_glove = None
     # pretrained_glove = load_glove(saved_params['glove_path'], dictionary)
 
     train_dataset = preprocess(train_dataset, dictionary, c_maxlen, q_maxlen)
@@ -96,7 +97,7 @@ def main(_):
     params = saved_params.copy()
 
     # Make model and run experiment
-    my_model = MPCM(params, initializer=None)
+    my_model = MPCM(params, initializer=pretrained_glove)
     run(my_model, params, train_dataset, dev_dataset) 
 
 
