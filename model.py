@@ -62,18 +62,22 @@ class Basic(object):
         self.merged_summary = None
         self.embed_writer = tf.summary.FileWriter(self.checkpoint_dir)
         self.embed_config = projector.ProjectorConfig()
-        self.projector = None
+        self.projector = None 
+        if params['embed_pretrained']:
+           embeddings = self.initialize_embedding(initializer)
         self.build_model()
         self.optimize_loss(self.start_logits, self.end_logits)
         self.save_settings()
         self.session.run(tf.global_variables_initializer())
+        if params['embed_pretrained']:
+            self.session.run(embeddings)
        
-        '''
         # debug initializer
-        with tf.variable_scope('Scope_here', reuse=True):
-            variable_here = tf.get_variable("name_here", [shape_here], dtype=tf.float32)
+        with tf.variable_scope('Word', reuse=True):
+            variable_here = tf.get_variable("embed", [self.dim_word, self.dim_embed_word],
+                    dtype=tf.float32)
             print(variable_here.eval(session=self.session))
-        '''
+        
 
     def encoder(self, inputs, length, max_length, dim_input, dim_embed, 
             initializer=None, trainable=True, reuse=False, scope='encoding'):
@@ -101,7 +105,7 @@ class Basic(object):
                 dim_input=self.dim_word,
                 dim_embed=self.dim_embed_word,
                 trainable=self.embed_trainable,
-                scope='Context')
+                reuse=True, scope='Context')
 
         question_encoded = self.encoder(inputs=self.question,
                 length=self.question_len,
@@ -144,6 +148,14 @@ class Basic(object):
                 grads.append(grad)
         self.optimize = self.optimizer.apply_gradients(zip(grads, self.variables), 
                 global_step=self.global_step)
+    
+    def initialize_embedding(self, word_embed):
+        with tf.variable_scope("Word"):
+            word_embeddings = tf.get_variable("embed",
+                                              initializer=tf.constant(word_embed),
+                                              trainable=self.embed_trainable,
+                                              dtype=tf.float32)
+            return word_embeddings
 
     def save_settings(self):
         model_vars = [v for v in tf.global_variables()]

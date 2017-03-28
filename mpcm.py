@@ -25,7 +25,6 @@ class MPCM(Basic):
             bw_cell = lstm_cell(self.dim_rnn_cell, self.cell_layer_num, self.lstm_dropout)
             r_inputs = rnn_reshape(inputs, self.dim_embed_word, max_length)
             outputs = bi_rnn_model(r_inputs, length, fw_cell, bw_cell)
-            # TODO: gather until actual length
             return outputs
     
     def matching_layer(self, context, question):
@@ -66,12 +65,12 @@ class MPCM(Basic):
                 fw_matching_list.append(fw_matching)
                 bw_matching_list.append(bw_matching)
 
-            print('fw, bw processing %d/%d' % (c_idx, len(fw_context_group)))
+            print('\t', 'fw, bw processing %d/%d' % (c_idx, len(fw_context_group)))
             if c_idx >= 9:
                 break
 
-        print('Matching list size:', len(fw_matching_list), len(bw_matching_list))
-        print('Matching element size:', fw_matching_list[0], bw_matching_list[0])
+        # print('\t', 'Matching list size:', len(fw_matching_list), len(bw_matching_list))
+        # print('\t', 'Matching element size:', fw_matching_list[0], bw_matching_list[0])
        
         def full_matching(sequence, length):
             # TODO: gather 0 or max index of sequence
@@ -97,22 +96,24 @@ class MPCM(Basic):
 
         fw_matching_total = tf.transpose(tf.stack(fw_matching_list), [1, 0, 2])
         bw_matching_total = tf.transpose(tf.stack(bw_matching_list), [1, 0, 2])
-        print('fw matching', fw_matching_total)
-        print('bw matching', bw_matching_total)
+        print('\t', 'fw matching', fw_matching_total)
+        print('\t', 'bw matching', bw_matching_total)
         fw_full, fw_max, fw_mean = tf.split(fw_matching_total, num_or_size_splits=3, axis=2)
         bw_full, bw_max, bw_mean = tf.split(bw_matching_total, num_or_size_splits=3, axis=2)
-        print(fw_full, fw_max, fw_mean)
-        print(bw_full, bw_max, bw_mean)
+        # print('\t', fw_full, fw_max, fw_mean)
+        # print('\t', bw_full, bw_max, bw_mean)
         c_len = 10
         q_len = self.question_maxlen
         fw_full = tf.reshape(fw_full, [-1, c_len, q_len * self.max_perspective])
-        # bw_full = tf.reshape(bw_full, [-1, c_len, q_len, self.max_perspective])
-        # fw_mean = tf.reshape(fw_mean, [-1, c_len, q_len, self.max_perspective])
-        # bw_mean = tf.reshape(bw_mean, [-1, c_len, q_len, self.max_perspective])
-        # fw_max = tf.reshape(fw_max, [-1, c_len, q_len, self.max_perspective])
-        # bw_max = tf.reshape(bw_max, [-1, c_len, q_len, self.max_perspective])
-        # print(fw_full, fw_max, fw_mean)
-        # print(bw_full, bw_max, bw_mean)
+        '''
+        fw_full = tf.reshape(fw_full, [-1, c_len, q_len, self.max_perspective])
+        bw_full = tf.reshape(bw_full, [-1, c_len, q_len, self.max_perspective])
+        fw_mean = tf.reshape(fw_mean, [-1, c_len, q_len, self.max_perspective])
+        bw_mean = tf.reshape(bw_mean, [-1, c_len, q_len, self.max_perspective])
+        fw_max = tf.reshape(fw_max, [-1, c_len, q_len, self.max_perspective])
+        bw_max = tf.reshape(bw_max, [-1, c_len, q_len, self.max_perspective])
+        print(fw_full, fw_max, fw_mean)
+        print(bw_full, bw_max, bw_mean)
 
         total_matching = tf.concat(axis=1, values=[
             full_matching(fw_full, self.question_len),
@@ -121,6 +122,7 @@ class MPCM(Basic):
             max_matching(bw_max, self.question_len),
             mean_matching(fw_mean, self.question_len),
             mean_matching(bw_mean, self.question_len)])
+        '''
 
         return fw_full
 
@@ -129,8 +131,10 @@ class MPCM(Basic):
             fw_cell = lstm_cell(self.dim_rnn_cell, self.cell_layer_num, self.lstm_dropout)
             bw_cell = lstm_cell(self.dim_rnn_cell, self.cell_layer_num, self.lstm_dropout)
             r_inputs = rnn_reshape(inputs, self.max_perspective, max_length)
-            outputs = bi_rnn_model(r_inputs, length, fw_cell, bw_cell)
-            return outputs 
+            outputs = bi_rnn_model(r_inputs, None, fw_cell, bw_cell)
+            print('\t', 'inputs', inputs)
+            print('\t', 'outputs', outputs)
+            return tf.reshape(outputs, [-1, 10 * self.dim_rnn_cell * 2])
 
     def prediction_layer(self, inputs):
         start_logits = linear(inputs=inputs,
@@ -140,6 +144,7 @@ class MPCM(Basic):
         end_logits = linear(inputs=inputs,
             output_dim=self.dim_output, 
             scope='Output_e')
+
         return start_logits, end_logits
 
     def build_model(self):
@@ -174,7 +179,7 @@ class MPCM(Basic):
 
         aggregation = self.aggregation_layer(matching_vectors, 10)
         print('# Aggregation_layer', aggregation)
-        
-        self.start_logits, self.end_logits = self.prediction_layer(self, aggregation)
+ 
+        self.start_logits, self.end_logits = self.prediction_layer(aggregation)
         print('# Prediction_layer', self.start_logits, self.end_logits)
  

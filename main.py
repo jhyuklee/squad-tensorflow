@@ -1,8 +1,10 @@
+import sys
+# sys.path.append('/home/jinhyuk/py3venv/lib/python3.4/site-packages/')
+
 import tensorflow as tf
 import numpy as np
 import pprint
 import argparse
-import sys
 
 from model import Basic
 from mpcm import MPCM
@@ -11,9 +13,10 @@ from dataset import read_data, build_dictionary, load_glove, preprocess
 from run import train, test
 
 
+
 flags = tf.app.flags
 flags.DEFINE_integer('train_epoch', 100, 'Training epoch')
-flags.DEFINE_integer("dim_embed_word", 200, "Dimension of word embedding")
+flags.DEFINE_integer("dim_embed_word", 300, "Dimension of word embedding")
 flags.DEFINE_integer("min_voca", 3, "Minimum frequency of word")
 flags.DEFINE_integer("min_grad", -5, "Minimum gradient to clip")
 flags.DEFINE_integer("max_grad", 5, "Maximum gradient to clip")
@@ -28,6 +31,7 @@ flags.DEFINE_float("learning_rate", 0.001, "Learning rate of the optimzier")
 flags.DEFINE_float("decay_rate", 0.99, "Decay rate of learning rate")
 flags.DEFINE_float("decay_step", 100, "Decay step of learning rate")
 flags.DEFINE_boolean("embed", True, "True to embed words")
+flags.DEFINE_boolean("embed_pretrained", False, "True to use pretrained embed words")
 flags.DEFINE_boolean("embed_trainable", True, "True to optimize embedded words")
 
 flags.DEFINE_string("model_name", "default", "Model name, auto saved as YMDHMS")
@@ -82,8 +86,10 @@ def main(_):
     """
     # Preprocess dataset
     dictionary, rev_dictionary, c_maxlen, q_maxlen = build_dictionary(train_dataset, saved_params)
-    pretrained_glove = None
-    # pretrained_glove = load_glove(saved_params['glove_path'], dictionary)
+    if saved_params['embed_pretrained']:
+        pretrained_glove = load_glove(saved_params['glove_path'], dictionary)
+    else:
+        pretrained_glove = None
 
     train_dataset = preprocess(train_dataset, dictionary, c_maxlen, q_maxlen)
     dev_dataset = preprocess(dev_dataset, dictionary, c_maxlen, q_maxlen)

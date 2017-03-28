@@ -41,9 +41,9 @@ def load_glove(glove_path, dictionary):
             pretrained_vectors = np.concatenate((pretrained_vectors, [word_vector]), axis=0)
 
     print('Pretrained vectors', pretrained_vectors.shape, 'unknown', unk_cnt)
-    print('Pretrained sample', pretrained_vectors[dictionary['UNK']])
-    print('Pretrained sample', pretrained_vectors[dictionary['good']])
-    return pretrained_vectors
+    # print('Pretrained sample', pretrained_vectors[dictionary['UNK']])
+    # print('Pretrained sample', pretrained_vectors[dictionary['good']])
+    return np.asarray(pretrained_vectors).astype(np.float32)
 
 
 def tokenize(words):
