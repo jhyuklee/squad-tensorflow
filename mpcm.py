@@ -35,9 +35,9 @@ class MPCM(Basic):
             cos_d = tf.scan(lambda a, W_k: (W_k * v1)*(W_k * v2), W)
             return tf.reduce_sum(cos_d, axis=1)
 
-        W_fw = tf.get_variable('W_fw', [self.max_perspective * 3, self.dim_hidden],
+        W_fw = tf.get_variable('W_fw', [self.max_perspective * 3, self.dim_rnn_cell],
                 initializer=tf.random_normal_initializer())
-        W_bw = tf.get_variable('W_bw', [self.max_perspective * 3, self.dim_hidden],
+        W_bw = tf.get_variable('W_bw', [self.max_perspective * 3, self.dim_rnn_cell],
                 initializer=tf.random_normal_initializer())
        
         fw_context_group = tf.split(fw_context, 
@@ -66,8 +66,8 @@ class MPCM(Basic):
                 bw_matching_list.append(bw_matching)
 
             print('\t', 'fw, bw processing %d/%d' % (c_idx, len(fw_context_group)))
-            if c_idx >= 9:
-                break
+            # if c_idx >= 9:
+            #     break
 
         # print('\t', 'Matching list size:', len(fw_matching_list), len(bw_matching_list))
         # print('\t', 'Matching element size:', fw_matching_list[0], bw_matching_list[0])
@@ -102,7 +102,7 @@ class MPCM(Basic):
         bw_full, bw_max, bw_mean = tf.split(bw_matching_total, num_or_size_splits=3, axis=2)
         # print('\t', fw_full, fw_max, fw_mean)
         # print('\t', bw_full, bw_max, bw_mean)
-        c_len = 10
+        c_len = self.context_maxlen
         q_len = self.question_maxlen
         fw_full = tf.reshape(fw_full, [-1, c_len, q_len * self.max_perspective])
         '''
@@ -134,7 +134,7 @@ class MPCM(Basic):
             outputs = bi_rnn_model(r_inputs, None, fw_cell, bw_cell)
             print('\t', 'inputs', inputs)
             print('\t', 'outputs', outputs)
-            return tf.reshape(outputs, [-1, 10 * self.dim_rnn_cell * 2])
+            return tf.reshape(outputs, [-1, self.context_maxlen * self.dim_rnn_cell * 2])
 
     def prediction_layer(self, inputs):
         start_logits = linear(inputs=inputs,
@@ -177,7 +177,7 @@ class MPCM(Basic):
         matching_vectors = self.matching_layer(context_rep, question_rep)
         print('# Matching_layer', matching_vectors)
 
-        aggregation = self.aggregation_layer(matching_vectors, 10)
+        aggregation = self.aggregation_layer(matching_vectors, self.context_maxlen)
         print('# Aggregation_layer', aggregation)
  
         self.start_logits, self.end_logits = self.prediction_layer(aggregation)
