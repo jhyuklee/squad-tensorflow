@@ -41,8 +41,8 @@ class Basic(object):
         self.question = tf.placeholder(tf.int32, [None, self.question_maxlen])
         self.answer_start = tf.placeholder(tf.int32, [None])
         self.answer_end = tf.placeholder(tf.int32, [None])
-        self.question_len = tf.placeholder(tf.int32, [None])
         self.context_len = tf.placeholder(tf.int32, [None])
+        self.question_len = tf.placeholder(tf.int32, [None])
         self.lstm_dropout = tf.placeholder(tf.float32)
         self.hidden_dropout = tf.placeholder(tf.float32)
 
