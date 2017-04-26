@@ -77,8 +77,8 @@ def train(model, dataset, params):
                                 f1_score, prediction, ground_truth)
                     
                     _progress = progress(dataset_idx / float(len(dataset)))
-                    _progress += "loss: %.3f, f1: %.3f, em: %.3f, batch: %d" % (loss, f1 /
-                            len(predictions), em / len(predictions), len(predictions)) 
+                    _progress += "loss: %.3f, f1: %.3f, em: %.3f, progress: %d/%d" % (loss, f1 /
+                            len(predictions), em / len(predictions), dataset_idx, len(dataset)) 
                     sys.stdout.write(_progress)
                     sys.stdout.flush()
 

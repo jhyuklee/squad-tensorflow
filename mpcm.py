@@ -62,13 +62,13 @@ class MPCM(Basic):
                 _progress = '\r\t processing %d/%d' % (ct_idx, len(context_group))
                 sys.stdout.write(_progress)
                 sys.stdout.flush()
-                if ct_idx >= 9:
-                    break
+                # if ct_idx >= 9:
+                #     break
             print()
             return tf.stack(matching_list)
 
         # TODO: use tf.cond for batch
-        init = tf.zeros([10 * self.question_maxlen, self.max_perspective])
+        init = tf.zeros([self.context_maxlen * self.question_maxlen, self.max_perspective])
         fw_matching_total = tf.scan(lambda a, w: run_matching(w[0], w[1], w[2], w[3], True), 
                 (fw_context, fw_question, self.context_len, self.question_len), init)
         print('\t', 'fw matching', fw_matching_total)
@@ -113,7 +113,7 @@ class MPCM(Basic):
         bw_full = bw_matching_total
         
         c_len = self.context_maxlen
-        c_len = 10
+        # c_len = 10
         q_len = self.question_maxlen
         fw_full = tf.transpose(tf.reshape(fw_full, [-1, c_len, q_len, self.max_perspective]), 
                 [0, 2, 1, 3])
@@ -124,7 +124,7 @@ class MPCM(Basic):
         return full_result
 
     def aggregation_layer(self, inputs, max_length, length):
-        max_length = 10 # For test
+        # max_length = 10 # For test
         with tf.variable_scope('Aggregation') as scope:
             fw_cell = lstm_cell(self.dim_rnn_cell, self.cell_layer_num, self.lstm_dropout)
             bw_cell = lstm_cell(self.dim_rnn_cell, self.cell_layer_num, self.lstm_dropout)
