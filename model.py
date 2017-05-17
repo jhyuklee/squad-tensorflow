@@ -52,27 +52,20 @@ class Basic(object):
                 self.learning_rate, self.global_step,
                 self.decay_step, self.decay_rate, staircase=True)
         self.optimizer = tf.train.AdamOptimizer(self.learning_rate)
-        self.optimize = None
-        self.saver = None
-        self.loss = None
-        self.start_logits = None
-        self.end_logits = None
 
         # model build
-        self.merged_summary = None
         self.embed_writer = tf.summary.FileWriter(self.checkpoint_dir)
         self.embed_config = projector.ProjectorConfig()
-        self.projector = None 
         if params['embed_pretrained']:
            embeddings = self.initialize_embedding(initializer)
         self.build_model()
         self.optimize_loss(self.start_logits, self.end_logits)
         self.save_settings()
         self.session.run(tf.global_variables_initializer())
-        if params['embed_pretrained']:
-            self.session.run(embeddings)
        
         # debug initializer
+        if params['embed_pretrained']:
+            self.session.run(embeddings)
         with tf.variable_scope('Word', reuse=True):
             variable_here = tf.get_variable("embed", [self.dim_word, self.dim_embed_word],
                     dtype=tf.float32)

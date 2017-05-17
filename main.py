@@ -16,14 +16,14 @@ from run import train, test
 
 flags = tf.app.flags
 flags.DEFINE_integer('train_epoch', 100, 'Training epoch')
-flags.DEFINE_integer("dim_embed_word", 300, "Dimension of word embedding")
+flags.DEFINE_integer("dim_embed_word", 100, "Dimension of word embedding")
 flags.DEFINE_integer("min_voca", 3, "Minimum frequency of word")
 flags.DEFINE_integer("min_grad", -5, "Minimum gradient to clip")
 flags.DEFINE_integer("max_grad", 5, "Maximum gradient to clip")
 flags.DEFINE_integer("max_perspective", 20, "Maximum number of perspective")
 flags.DEFINE_integer("batch_size", 1, "Size of batch")
-flags.DEFINE_integer("dim_rnn_cell", 100, "Dimension of RNN cell")
-flags.DEFINE_integer("dim_hidden", 100, "Dimension of hidden layer")
+flags.DEFINE_integer("dim_rnn_cell", 50, "Dimension of RNN cell")
+flags.DEFINE_integer("dim_hidden", 50, "Dimension of hidden layer")
 flags.DEFINE_integer("lstm_layer", 1, "Layer number of RNN ")
 flags.DEFINE_float("lstm_dropout", 0.5, "Dropout of RNN cell")
 flags.DEFINE_float("hidden_dropout", 0.5, "Dropout rate of hidden layer")
@@ -31,14 +31,14 @@ flags.DEFINE_float("learning_rate", 0.001, "Learning rate of the optimzier")
 flags.DEFINE_float("decay_rate", 0.99, "Decay rate of learning rate")
 flags.DEFINE_float("decay_step", 100, "Decay step of learning rate")
 flags.DEFINE_boolean("embed", True, "True to embed words")
-flags.DEFINE_boolean("embed_pretrained", False, "True to use pretrained embed words")
-flags.DEFINE_boolean("embed_trainable", True, "True to optimize embedded words")
+flags.DEFINE_boolean("embed_pretrained", True, "True to use pretrained embed words")
+flags.DEFINE_boolean("embed_trainable", False, "True to optimize embedded words")
 
 flags.DEFINE_string("model_name", "default", "Model name, auto saved as YMDHMS")
 flags.DEFINE_string('train_path', './data/train-v1.1.json', 'Training dataset path')
 flags.DEFINE_string('dev_path', './data/dev-v1.1.json',  'Development dataset path')
 flags.DEFINE_string('pred_path', './result/dev-v1.1-pred.json', 'Prediction output path')
-flags.DEFINE_string('glove_path', '~/embed_data/glove.840B.300d.gensim-txt', 'Prediction output path')
+flags.DEFINE_string('glove_path', '~/embed_data/glove.6B.100d.txt', 'Prediction output path')
 flags.DEFINE_string('checkpoint_dir', './result/ckpt/', 'Checkpoint directory')
 FLAGS = flags.FLAGS
 
@@ -86,8 +86,9 @@ def main(_):
     """
     # Preprocess dataset
     dictionary, rev_dictionary, c_maxlen, q_maxlen = build_dictionary(train_dataset, saved_params)
+    c_maxlen = 300 # For test
     if saved_params['embed_pretrained']:
-        pretrained_glove = load_glove(saved_params['glove_path'], dictionary)
+        pretrained_glove = load_glove(dictionary, saved_params)
     else:
         pretrained_glove = None
 

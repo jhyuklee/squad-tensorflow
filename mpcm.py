@@ -26,8 +26,6 @@ class MPCM(Basic):
             bw_cell = lstm_cell(self.dim_rnn_cell, self.cell_layer_num, self.lstm_dropout)
             r_inputs = rnn_reshape(inputs, self.dim_embed_word, max_length)
             outputs = bi_rnn_model(r_inputs, length, fw_cell, bw_cell)
-            # TODO: Gather by length
-
             return outputs
     
     def matching_layer(self, context, question):
@@ -67,7 +65,6 @@ class MPCM(Basic):
             print()
             return tf.stack(matching_list)
 
-        # TODO: use tf.cond for batch
         init = tf.zeros([self.context_maxlen * self.question_maxlen, self.max_perspective])
         fw_matching_total = tf.scan(lambda a, w: run_matching(w[0], w[1], w[2], w[3], True), 
                 (fw_context, fw_question, self.context_len, self.question_len), init)
@@ -154,7 +151,8 @@ class MPCM(Basic):
                 voca_size=self.dim_word,
                 embedding_dim=self.dim_embed_word, 
                 initializer=self.initializer, 
-                trainable=self.embed_trainable, scope='Word')
+                trainable=self.embed_trainable,
+                reuse=True, scope='Word')
 
         question_embed = embedding_lookup(
                 inputs=self.question,

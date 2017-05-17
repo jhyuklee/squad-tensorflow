@@ -1,4 +1,5 @@
 import sys
+import os
 import json
 import re
 import gensim
@@ -19,30 +20,34 @@ def read_data(dataset_path, version):
     return dataset
 
 
-def load_glove(glove_path, dictionary):
+def load_glove(dictionary, params):
     print('Glove Loading...')
     start_time = datetime.datetime.now()
-    glove = gensim.models.Word2Vec.load_word2vec_format(glove_path, binary=False)
+    assert str(params['dim_embed_word']) in params['glove_path'], \
+            'Pretrained dimension does not match!'
+    glove = {}
+    glove_path = os.path.expanduser(params['glove_path'])
+    with open(glove_path, 'r', encoding='utf-8', errors='ignore') as f:
+        while True:
+            line = f.readline()
+            if not line: break
+            word = line.split()[0]
+            embed = [float(l) for l in line.split()[1:]]
+            glove[word] = embed
     elapsed_time = datetime.datetime.now() - start_time
-    print('Glove Loading Done', elapsed_time)
+    print('Glove Loading Done', elapsed_time, len(glove))
 
-    pretrained_vectors = None
+    pretrained_vectors = []
     unk_cnt = 0
-    for word, vector in sorted(dictionary.items(), key=operator.itemgetter(1)):
+    for word, word_idx in sorted(dictionary.items(), key=operator.itemgetter(1)):
         if word in glove:
             word_vector = glove[word]
         else:
-            word_vector = np.random.rand(300)
+            word_vector = [0.0] * params['dim_embed_word']
             unk_cnt += 1
+        pretrained_vectors.append(word_vector)
 
-        if pretrained_vectors is None:
-            pretrained_vectors = [word_vector]
-        else:
-            pretrained_vectors = np.concatenate((pretrained_vectors, [word_vector]), axis=0)
-
-    print('Pretrained vectors', pretrained_vectors.shape, 'unknown', unk_cnt)
-    # print('Pretrained sample', pretrained_vectors[dictionary['UNK']])
-    # print('Pretrained sample', pretrained_vectors[dictionary['good']])
+    print('Pretrained vectors', np.asarray(pretrained_vectors).shape, 'unknown', unk_cnt)
     return np.asarray(pretrained_vectors).astype(np.float32)
 
 
@@ -66,6 +71,8 @@ def word2idx(words, dictionary, max_length=None):
     if max_length is not None:
         while len(result_idx) < max_length:
             result_idx.append(dictionary['PAD'])
+        if len(result_idx) > max_length:
+            result_idx = result_idx[:max_length]
 
     return result_idx, original_len
 
