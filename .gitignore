@@ -1,0 +1,6 @@
+/data/*
+/result/*
+__pycache__
+
+*.pyc
+*.swp
