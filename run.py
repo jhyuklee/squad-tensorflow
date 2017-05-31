@@ -38,49 +38,64 @@ def train(model, dataset, params):
                 batch_answer_start = np.array([a_s for _, _, _, _, a_s, _ in mini_batch])
                 batch_answer_end = np.array([a_e for _, _, _, _, _, a_e in mini_batch])
 
-                """
-                # Debugging
-                print(batch_context.shape, batch_context_len.shape, 
-                        batch_question.shape, batch_question_len.shape, batch_answer.shape)
-                print('c', batch_context[0])
-                print('c_len', batch_context_len[0])
-                print('q', batch_question[0])
-                print('q_len', batch_question_len[0])
-                print('a', batch_answer[0])
-                """
-
                 feed_dict = {model.context: batch_context,
                         model.context_len: batch_context_len,
                         model.question: batch_question,
                         model.question_len: batch_question_len,
                         model.answer_start: batch_answer_start,
                         model.answer_end: batch_answer_end,
-                        model.lstm_dropout: params['lstm_dropout'],
-                        model.hidden_dropout: params['hidden_dropout']}
+                        model.rnn_dropout: params['rnn_dropout'],
+                        model.hidden_dropout: params['hidden_dropout'],
+                        model.embed_dropout: params['embed_dropout']}
                 _, loss = sess.run([model.optimize, model.loss], feed_dict=feed_dict)
                 
                 # Print intermediate result
                 if dataset_idx % 5 == 0:
+                    """
+                    # Dataset Debugging
+                    print(batch_context.shape, batch_context_len.shape, batch_question.shape, 
+                            batch_question_len.shape, batch_answer_start.shape)
+                    for kk in range(len(batch_context)):
+                        print('c', batch_context[kk][:10])
+                        print('c_len', batch_context_len[kk])
+                        print('q', batch_question[kk][:10])
+                        print('q_len', batch_question_len[kk])
+                        print('a', batch_answer_start[kk])
+                        print('a', batch_answer_end[kk])
+                    """
+                
                     start_logits, end_logits = sess.run([model.start_logits, model.end_logits],
                         feed_dict=feed_dict)
                     start_idx = np.argmax(start_logits, 1)
                     end_idx = np.argmax(end_logits, 1)
                     predictions = []
+                    print()
                     for c, s_idx, e_idx in zip(context_raws, start_idx, end_idx):
+                        print('start_idx / end_idx', s_idx, e_idx)
                         predictions.append(' '.join([w for w in c[s_idx: e_idx+1]]))
-
+                    print('s', start_logits[0][:10])
+                    print('s', start_logits[1][:10])
+                    print('e', end_logits[0][:10])
+                    print('e', end_logits[1][:10])
                     em = f1 = 0 
                     for prediction, ground_truth in zip(predictions, ground_truths):
+                        print('pred', prediction)
+                        print('real', ground_truth)
                         em += metric_max_over_ground_truths(
                                 exact_match_score, prediction, ground_truth)
                         f1 += metric_max_over_ground_truths(
                                 f1_score, prediction, ground_truth)
+                    print()
                     
                     _progress = progress(dataset_idx / float(len(dataset)))
                     _progress += "loss: %.3f, f1: %.3f, em: %.3f, progress: %d/%d" % (loss, f1 /
                             len(predictions), em / len(predictions), dataset_idx, len(dataset)) 
                     sys.stdout.write(_progress)
                     sys.stdout.flush()
+                    
+                    if dataset_idx / 5 == 50:
+                        # sys.exit()
+                        pass
 
                     total_f1 += f1 / len(predictions)
                     total_em += em / len(predictions)

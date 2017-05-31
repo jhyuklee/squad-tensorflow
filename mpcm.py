@@ -22,56 +22,39 @@ class MPCM(Basic):
 
     def representation_layer(self, inputs, length, max_length, scope=None):
         with tf.variable_scope('Representation/' + scope) as scope:
-            fw_cell = lstm_cell(self.dim_rnn_cell, self.cell_layer_num, self.lstm_dropout)
-            bw_cell = lstm_cell(self.dim_rnn_cell, self.cell_layer_num, self.lstm_dropout)
+            fw_cell = lstm_cell(self.dim_rnn_cell, self.rnn_layer, self.rnn_dropout)
+            bw_cell = lstm_cell(self.dim_rnn_cell, self.rnn_layer, self.rnn_dropout)
             r_inputs = rnn_reshape(inputs, self.dim_embed_word, max_length)
             outputs = bi_rnn_model(r_inputs, length, fw_cell, bw_cell)
             return outputs
     
     def matching_layer(self, context, question):
-        fw_context, bw_context = tf.split(context, num_or_size_splits=2, axis=2)
-        fw_question, bw_question = tf.split(question, num_or_size_splits=2, axis=2)
         
         def matching_function(v1, v2, W):
             # TODO: Normalize vectors
             cos_d = tf.scan(lambda a, W_k: (W_k * v1)*(W_k * v2), W)
             return tf.reduce_sum(cos_d, axis=1)
-
-        W_fw = tf.get_variable('W_fw', [self.max_perspective, self.dim_rnn_cell],
-                initializer=tf.random_normal_initializer())
-        W_bw = tf.get_variable('W_bw', [self.max_perspective, self.dim_rnn_cell],
-                initializer=tf.random_normal_initializer())
         
-        def run_matching(single_context, single_question, context_len, question_len, fw=True):
+        def run_matching(single_context, single_question, context_len, question_len, W):
             context_group = tf.unstack(single_context, self.context_maxlen)
             question_group = tf.unstack(single_question, self.question_maxlen)
             matching_list = []
             for ct_idx, ct in enumerate(context_group):
                 for qu_idx, qu in enumerate(question_group):
-                    init = tf.zeros([self.max_perspective])
-                    W = W_fw if fw else W_bw
+                    init = tf.zeros([self.max_perspective * 2])
                     ct_const = tf.constant(ct_idx)
                     qu_const = tf.constant(qu_idx)
-                    matching_result = tf.cond(tf.less(qu_const, question_len),
-                        lambda: tf.cond(tf.less(ct_const, context_len), lambda: matching_function(ct, qu, W),
-                        lambda: init), lambda: init)
+                    # matching_result = tf.cond(tf.less(qu_const, question_len),
+                    #     lambda: tf.cond(tf.less(ct_const, context_len), 
+                    #         lambda: matching_function(ct, qu, W), lambda: init), lambda: init)
+                    matching_result = matching_function(ct, qu, W)
                     matching_list.append(matching_result)
 
                 _progress = '\r\t processing %d/%d' % (ct_idx, len(context_group))
                 sys.stdout.write(_progress)
                 sys.stdout.flush()
-                # if ct_idx >= 9:
-                #     break
             print()
             return tf.stack(matching_list)
-
-        init = tf.zeros([self.context_maxlen * self.question_maxlen, self.max_perspective])
-        fw_matching_total = tf.scan(lambda a, w: run_matching(w[0], w[1], w[2], w[3], True), 
-                (fw_context, fw_question, self.context_len, self.question_len), init)
-        print('\t', 'fw matching', fw_matching_total)
-        bw_matching_total = tf.scan(lambda a, w: run_matching(w[0], w[1], w[2], w[3], False), 
-                (bw_context, bw_question, self.context_len, self.question_len), init)
-        print('\t', 'bw matching', bw_matching_total)
         
         def full_matching(fw_seq, bw_seq, length):
             print('\t', 'Full matching')
@@ -103,14 +86,17 @@ class MPCM(Basic):
         def mean_matching(sequence, length):
             # TODO: gather mean of 0 ~ max in sequence
             return sequence
-
-        # fw_full, fw_max, fw_mean = tf.split(fw_matching_total, num_or_size_splits=3, axis=2)
-        # bw_full, bw_max, bw_mean = tf.split(bw_matching_total, num_or_size_splits=3, axis=2)
-        fw_full = fw_matching_total
-        bw_full = bw_matching_total
         
+        W_fb = tf.get_variable('W', [self.max_perspective * 2, self.dim_rnn_cell * 2],
+                initializer=tf.random_normal_initializer())
+
+        init = tf.zeros([self.context_maxlen * self.question_maxlen, self.max_perspective * 2])
+        matching_total = tf.scan(lambda a, w: run_matching(w[0], w[1], w[2], w[3], W_fb), 
+                (context, question, self.context_len, self.question_len), init)
+        print('\t', 'matching', matching_total)
+
+        fw_full, bw_full = tf.split(axis=2, num_or_size_splits=2, value=matching_total)
         c_len = self.context_maxlen
-        # c_len = 10
         q_len = self.question_maxlen
         fw_full = tf.transpose(tf.reshape(fw_full, [-1, c_len, q_len, self.max_perspective]), 
                 [0, 2, 1, 3])
@@ -120,47 +106,51 @@ class MPCM(Basic):
 
         return full_result
 
+    def test_layer(self, context, question):
+        return context
+
     def aggregation_layer(self, inputs, max_length, length):
-        # max_length = 10 # For test
         with tf.variable_scope('Aggregation') as scope:
-            fw_cell = lstm_cell(self.dim_rnn_cell, self.cell_layer_num, self.lstm_dropout)
-            bw_cell = lstm_cell(self.dim_rnn_cell, self.cell_layer_num, self.lstm_dropout)
-            r_inputs = rnn_reshape(inputs, self.max_perspective * 2, max_length)
+            fw_cell = lstm_cell(self.dim_rnn_cell, self.rnn_layer, self.rnn_dropout)
+            bw_cell = lstm_cell(self.dim_rnn_cell, self.rnn_layer, self.rnn_dropout)
+            # r_inputs = rnn_reshape(inputs, self.max_perspective * 2, max_length)
+            r_inputs = rnn_reshape(inputs, self.dim_rnn_cell * 2, max_length)
             outputs = bi_rnn_model(r_inputs, length, fw_cell, bw_cell)
             print('\t', 'inputs', inputs)
             print('\t', 'outputs', outputs)
-            #TODO: gather only sentence boundary vectors => mask?
-            return tf.reshape(outputs, [-1, max_length * self.dim_rnn_cell * 2])
+            return outputs
 
     def prediction_layer(self, inputs):
-        start_logits = linear(inputs=inputs,
-            output_dim=self.dim_output, 
-            scope='Output_s')
+        batch_size = tf.shape(inputs)[0]
+        start_logits = tf.squeeze(linear(inputs=inputs,
+            output_dim=1, 
+            scope='Output_s'))
+        start_logits = tf.nn.softmax(tf.reshape(start_logits, [batch_size, self.dim_output]))
 
-        end_logits = linear(inputs=inputs,
-            output_dim=self.dim_output, 
-            scope='Output_e')
+        end_logits = tf.squeeze(linear(inputs=inputs,
+            output_dim=1, 
+            scope='Output_e'))
+        end_logits = tf.nn.softmax(tf.reshape(end_logits, [batch_size, self.dim_output]))
 
         return start_logits, end_logits
 
     def build_model(self):
         print("### Building MPCM model ###")
-         
-        context_embed = embedding_lookup(
+        context_embed = dropout(embedding_lookup(
                 inputs=self.context,
-                voca_size=self.dim_word,
+                voca_size=self.voca_size,
                 embedding_dim=self.dim_embed_word, 
                 initializer=self.initializer, 
                 trainable=self.embed_trainable,
-                reuse=True, scope='Word')
+                reuse=True, scope='Word'), self.embed_dropout)
 
-        question_embed = embedding_lookup(
+        question_embed = dropout(embedding_lookup(
                 inputs=self.question,
-                voca_size=self.dim_word,
+                voca_size=self.voca_size,
                 embedding_dim=self.dim_embed_word,
                 initializer=self.initializer,
                 trainable=self.embed_trainable,
-                reuse=True, scope='Word')
+                reuse=True, scope='Word'), self.embed_dropout)
 
         context_filtered = self.filter_layer(context_embed, question_embed)
         print('# Filter_layer', context_filtered)
@@ -171,12 +161,15 @@ class MPCM(Basic):
                 self.question_maxlen, scope='Question')
         print('# Representation_layer', context_rep, question_rep)
 
-        matching_vectors = self.matching_layer(context_rep, question_rep)
+        # matching_vectors = self.matching_layer(context_rep, question_rep)
+        matching_vectors = self.test_layer(context_rep, question_rep)
         print('# Matching_layer', matching_vectors)
 
         aggregation = self.aggregation_layer(matching_vectors, self.context_maxlen, self.context_len)
         print('# Aggregation_layer', aggregation)
  
-        self.start_logits, self.end_logits = self.prediction_layer(aggregation)
-        print('# Prediction_layer', self.start_logits, self.end_logits)
+        start_logits, end_logits = self.prediction_layer(aggregation)
+        print('# Prediction_layer', start_logits, end_logits)
+
+        return start_logits, end_logits
  

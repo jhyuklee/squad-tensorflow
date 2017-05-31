@@ -1,6 +1,4 @@
 import sys
-# sys.path.append('/home/jinhyuk/py3venv/lib/python3.4/site-packages/')
-
 import tensorflow as tf
 import numpy as np
 import pprint
@@ -12,29 +10,29 @@ from time import gmtime, strftime
 from dataset import read_data, build_dictionary, load_glove, preprocess
 from run import train, test
 
-
-
 flags = tf.app.flags
 flags.DEFINE_integer('train_epoch', 100, 'Training epoch')
-flags.DEFINE_integer("dim_embed_word", 100, "Dimension of word embedding")
 flags.DEFINE_integer("min_voca", 3, "Minimum frequency of word")
 flags.DEFINE_integer("min_grad", -5, "Minimum gradient to clip")
 flags.DEFINE_integer("max_grad", 5, "Maximum gradient to clip")
-flags.DEFINE_integer("max_perspective", 20, "Maximum number of perspective")
-flags.DEFINE_integer("batch_size", 1, "Size of batch")
-flags.DEFINE_integer("dim_rnn_cell", 50, "Dimension of RNN cell")
+flags.DEFINE_integer("max_perspective", 10, "Maximum number of perspective")
+flags.DEFINE_integer("batch_size", 3, "Size of batch")
+flags.DEFINE_integer("dim_embed_word", 100, "Dimension of word embedding")
+flags.DEFINE_integer("dim_rnn_cell", 100, "Dimension of RNN cell")
 flags.DEFINE_integer("dim_hidden", 50, "Dimension of hidden layer")
-flags.DEFINE_integer("lstm_layer", 1, "Layer number of RNN ")
-flags.DEFINE_float("lstm_dropout", 0.5, "Dropout of RNN cell")
+flags.DEFINE_integer("rnn_layer", 1, "Layer number of RNN ")
+flags.DEFINE_float("rnn_dropout", 0.5, "Dropout of RNN cell")
 flags.DEFINE_float("hidden_dropout", 0.5, "Dropout rate of hidden layer")
-flags.DEFINE_float("learning_rate", 0.001, "Learning rate of the optimzier")
+flags.DEFINE_float("embed_dropout", 0.8, "Dropout rate of embedding layer")
+flags.DEFINE_float("learning_rate", 1e-4, "Learning rate of the optimzier")
 flags.DEFINE_float("decay_rate", 0.99, "Decay rate of learning rate")
 flags.DEFINE_float("decay_step", 100, "Decay step of learning rate")
+flags.DEFINE_boolean("test", False, "True to max context length 5")
 flags.DEFINE_boolean("embed", True, "True to embed words")
 flags.DEFINE_boolean("embed_pretrained", True, "True to use pretrained embed words")
 flags.DEFINE_boolean("embed_trainable", False, "True to optimize embedded words")
 
-flags.DEFINE_string("model_name", "default", "Model name, auto saved as YMDHMS")
+flags.DEFINE_string("model", "m", "b: basic, m: mpcm")
 flags.DEFINE_string('train_path', './data/train-v1.1.json', 'Training dataset path')
 flags.DEFINE_string('dev_path', './data/dev-v1.1.json',  'Development dataset path')
 flags.DEFINE_string('pred_path', './result/dev-v1.1-pred.json', 'Prediction output path')
@@ -61,9 +59,6 @@ def run(model, params, train_dataset, dev_dataset):
 def main(_):
     # Parse arguments and flags
     expected_version = '1.1'
-    parser = argparse.ArgumentParser(
-        description='Evaluation for SQuAD ' + expected_version)
-    args = parser.parse_args()
     saved_params = FLAGS.__flags
     pprint.PrettyPrinter().pprint(saved_params)
 
@@ -86,7 +81,8 @@ def main(_):
     """
     # Preprocess dataset
     dictionary, rev_dictionary, c_maxlen, q_maxlen = build_dictionary(train_dataset, saved_params)
-    c_maxlen = 300 # For test
+    c_maxlen = 5 if saved_params['test'] else c_maxlen
+
     if saved_params['embed_pretrained']:
         pretrained_glove = load_glove(dictionary, saved_params)
     else:
@@ -104,7 +100,12 @@ def main(_):
     params = saved_params.copy()
 
     # Make model and run experiment
-    my_model = MPCM(params, initializer=pretrained_glove)
+    if saved_params['model'] == 'm':
+        my_model = MPCM(params, initializer=pretrained_glove)
+    elif saved_params['model'] == 'b':
+        my_model = Basic(params, initializer=pretrained_glove)
+    else:
+        assert False, "Check your version %s" % saved_params['model']
     run(my_model, params, train_dataset, dev_dataset) 
 
 

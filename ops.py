@@ -15,6 +15,12 @@ def lstm_cell(cell_dim, layer_num, keep_prob):
         cell = tf.contrib.rnn.DropoutWrapper(cell, output_keep_prob=keep_prob)
         return tf.contrib.rnn.MultiRNNCell([cell] * layer_num, state_is_tuple=True)
 
+def gru_cell(cell_dim, layer_num, keep_prob):
+    with tf.variable_scope('GRU_Cell') as scope:
+        cell = tf.contrib.rnn.GRUCell(cell_dim)
+        cell = tf.contrib.rnn.DropoutWrapper(cell, output_keep_prob=keep_prob)
+        return tf.contrib.rnn.MultiRNNCell([cell] * layer_num)
+
 
 def rnn_reshape(inputs, input_dim, max_time_step):
     with tf.variable_scope('Reshape') as scope:

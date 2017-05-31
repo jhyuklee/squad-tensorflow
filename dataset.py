@@ -127,6 +127,7 @@ def build_dictionary(dataset, params):
             reverse_dictionary[dictionary[key]] = key
     print('Dictionary size', len(dictionary))
     print([(k, dictionary[k]) for k in sorted(dictionary, key=dictionary.get)[:20]])
+    # context_maxlen = 300 # For testing
     print('Maxlen of C:%d, Q:%d, A:%d' % (context_maxlen, question_maxlen, answer_maxlen))
 
     return dictionary, reverse_dictionary, context_maxlen, question_maxlen
@@ -140,6 +141,9 @@ def preprocess(dataset, dictionary, c_maxlen, q_maxlen):
             context = paragraph['context']
             cqa_item = {}
             cqa_item['c_raw'] = tokenize(context)
+            # if len(cqa_item['c_raw']) > c_maxlen:
+            #     continue
+
             cqa_item['c'], cqa_item['c_len'] = word2idx(context, dictionary, c_maxlen)
             if d_idx == 0 and p_idx == 0:
                 # print(context)
@@ -163,6 +167,7 @@ def preprocess(dataset, dictionary, c_maxlen, q_maxlen):
 
     # print('\nis preprocessed as \n')
     # print(cqa_set[0])
+    print('Dataset length:', len(cqa_set))
 
     return cqa_set
 
