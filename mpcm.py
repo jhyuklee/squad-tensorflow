@@ -125,12 +125,12 @@ class MPCM(Basic):
         start_logits = tf.squeeze(linear(inputs=inputs,
             output_dim=1, 
             scope='Output_s'))
-        start_logits = tf.nn.softmax(tf.reshape(start_logits, [batch_size, self.dim_output]))
+        start_logits = tf.reshape(start_logits, [batch_size, self.dim_output])
 
         end_logits = tf.squeeze(linear(inputs=inputs,
             output_dim=1, 
             scope='Output_e'))
-        end_logits = tf.nn.softmax(tf.reshape(end_logits, [batch_size, self.dim_output]))
+        end_logits = tf.reshape(end_logits, [batch_size, self.dim_output])
 
         return start_logits, end_logits
 
