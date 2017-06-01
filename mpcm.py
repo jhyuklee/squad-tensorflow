@@ -13,8 +13,8 @@ class MPCM(Basic):
     def filter_layer(self, context, question):
         c_norm = tf.norm(context, axis=2, keep_dims=True)
         q_norm = tf.norm(question, axis=2, keep_dims=True)
-        n_context = context / (c_norm + tf.constant(1e-5))
-        n_question = question / (q_norm + tf.constant(1e-5))
+        n_context = context / (c_norm + tf.constant(1e-10))
+        n_question = question / (q_norm + tf.constant(1e-10))
         tr_question = tf.transpose(n_question, [0, 2, 1])
         similarity = tf.matmul(n_context, tr_question)
         max_similarity = tf.reduce_max(similarity, 2, keep_dims=True)
@@ -31,39 +31,35 @@ class MPCM(Basic):
     def matching_layer(self, context, question):
         
         def matching_function(w, c, q):
-            # [6L, H] => [C, 6L, H], [Q, 6L, H]
-            w_tiled_context = tf.tile(tf.expand_dims(w, 0), [self.context_maxlen, 1, 1])
-            w_tiled_question = tf.tile(tf.expand_dims(w, 0), [self.question_maxlen, 1, 1])
-
             # [B, C, 2H] => [B, C, 3L, 2H] => [B, C, 6L, H]
             c_tiled = tf.tile(tf.expand_dims(c, 2), [1, 1, self.dim_perspective * 3, 1])
-            c_w = tf.multiply(c_tiled, w_tiled_context)
-            c_w_f, c_w_b = tf.split(c_w, axis=3, num_or_size_splits=2)
-            c_w_fb = tf.concat([c_w_f, c_w_b], axis=2)
+            c_f, c_b = tf.split(c_tiled, axis=3, num_or_size_splits=2)
+            c_fb = tf.concat([c_f, c_b], axis=2)
+            c_w = tf.multiply(c_fb, w)
 
             # [B, Q, 2H] => [B, Q, 3L, 2H] => [B, Q, 6L, H]
             q_tiled = tf.tile(tf.expand_dims(q, 2), [1, 1, self.dim_perspective * 3, 1])
-            q_w = tf.multiply(q_tiled, w_tiled_question)
-            q_w_f, q_w_b = tf.split(q_w, axis=3, num_or_size_splits=2)
-            q_w_fb = tf.concat([q_w_f, q_w_b], axis=2)
-
+            q_f, q_b = tf.split(q_tiled, axis=3, num_or_size_splits=2)
+            q_fb = tf.concat([q_f, q_b], axis=2)
+            q_w = tf.multiply(q_fb, w)
+            
             # [B, C, 6L, H] => [B, C, Q, 6L, H]
-            context_tiled_q = tf.tile(tf.expand_dims(c_w_fb, 2), 
+            context_tiled_q = tf.tile(tf.expand_dims(c_w, 2), 
                     [1, 1, self.question_maxlen, 1, 1])
             c_norm = tf.norm(context_tiled_q, axis=4, keep_dims=True)
-            context_tiled_q /= (c_norm + tf.constant(1e-5))
+            context_tiled_q_n = context_tiled_q / (c_norm + tf.constant(1e-10))
             
             # [B, Q, 6L, H] => [B, C, Q, 6L, H]
-            question_tiled_c = tf.tile(tf.expand_dims(q_w_fb, 1),
+            question_tiled_c = tf.tile(tf.expand_dims(q_w, 1),
                     [1, self.context_maxlen, 1, 1, 1])
             q_norm = tf.norm(question_tiled_c, axis=4, keep_dims=True)
-            question_tiled_c /= (q_norm + tf.constant(1e-5))
+            question_tiled_c_n = question_tiled_c / (q_norm + tf.constant(1e-10))
             
             # [B, C, Q, 6L, H] => [B, C, Q, 6L]
-            W_multiplied = tf.multiply(context_tiled_q, question_tiled_c)
-            W_result = tf.reduce_sum(W_multiplied, 4)
+            w_multiplied = tf.multiply(context_tiled_q_n, question_tiled_c_n)
+            w_result = tf.reduce_sum(w_multiplied, 4)
 
-            return W_result
+            return w_result
 
         def full_matching(fw, bw):
             batch_size = tf.shape(fw)[0]
@@ -71,7 +67,7 @@ class MPCM(Basic):
                     [1, self.context_maxlen]), [-1])
             context_index = tf.reshape(tf.tile(tf.expand_dims(tf.range(0, self.context_maxlen), 0),
                     [batch_size, 1]), [-1])
-            question_index = tf.reshape(tf.tile(tf.expand_dims(self.question_len, 1),
+            question_index = tf.reshape(tf.tile(tf.expand_dims(self.question_len - 1, 1),
                     [1, self.context_maxlen]), [-1])
             fw_indices = tf.concat([tf.expand_dims(batch_index, 1),
                 tf.expand_dims(context_index, 1),
@@ -80,8 +76,6 @@ class MPCM(Basic):
                 tf.expand_dims(context_index, 1),
                 tf.expand_dims(tf.zeros([batch_size * self.context_maxlen], dtype=tf.int32), 1)], axis=1)
 
-            # fw_indices = tf.Print(fw_indices, [fw_indices], 'fw indices', summarize=15)
-            # bw_indices = tf.Print(bw_indices, [bw_indices], 'bw indices', summarize=15)
             gathered_fw = tf.reshape(tf.gather_nd(fw, fw_indices), 
                     [-1, self.context_maxlen, self.dim_perspective])
             gathered_bw = tf.reshape(tf.gather_nd(bw, bw_indices),
@@ -89,7 +83,6 @@ class MPCM(Basic):
             
             result = tf.concat([gathered_fw, gathered_bw], axis=2)
             print('\tfull matching', result)
-
             return result
 
         def max_matching(fw, bw):
@@ -107,20 +100,24 @@ class MPCM(Basic):
             result = tf.concat([gathered_fw, gathered_bw], axis=2)
             print('\tmean matching', result)
             return result
-        
-        W_matching = tf.get_variable('W_matching', [self.dim_perspective * 3, self.dim_rnn_cell * 2],
-                initializer=tf.random_normal_initializer())
-        matching_result = matching_function(W_matching, context, question)
+       
+        w_matching = tf.get_variable('w_matching', [self.dim_perspective * 6, self.dim_rnn_cell],
+                initializer=tf.random_normal_initializer(), dtype=tf.float32)
+        matching_result = matching_function(w_matching, context, question)
         
         full_fw, max_fw, mean_fw, full_bw, max_bw, mean_bw = tf.split(matching_result, axis=3,
                 num_or_size_splits=6)
         full_result = full_matching(full_fw, full_bw)
         max_result = max_matching(max_fw, max_bw)
         mean_result = mean_matching(mean_fw, mean_bw)
+        
+        # full_result = tf.Print(full_result, [full_result], 'full', summarize=10)
+        # max_result = tf.Print(max_result, [max_result], 'max', summarize=10)
+        # mean_result = tf.Print(mean_result, [mean_result], 'mean', summarize=10)
 
         result = tf.concat([full_result, max_result, mean_result], axis=2)
         print('\tmatching_result', result)
-
+        
         return result
 
     def aggregation_layer(self, inputs, max_length, length):
@@ -169,10 +166,11 @@ class MPCM(Basic):
         print('# Filter_layer', context_filtered)
         
         """
-        self.dim_rnn_cell = self.dim_embed_word / 2 # For skipping rep layer
+        # For skipping rep layer
+        self.dim_rnn_cell = self.dim_embed_word / 2        
         aggregation = self.matching_layer(context_filtered, question_embed)
-
         """
+
         context_rep = self.representation_layer(context_filtered, self.context_len,
                 self.context_maxlen, scope='Context')
         question_rep = self.representation_layer(question_embed, self.question_len,

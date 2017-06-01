@@ -8,7 +8,7 @@ class Basic(object):
     def __init__(self, params, initializer):
 
         # session settings
-        config = tf.ConfigProto(device_count={'GPU':1})
+        config = tf.ConfigProto(device_count={'GPU':2})
         config.gpu_options.allow_growth = True
         self.session = tf.Session(config=config)
         self.params = params
@@ -138,20 +138,18 @@ class Basic(object):
         tf.summary.scalar('Loss', self.loss)
         
         print('# Calculating derivatives.. \n')
-        grads = []
+        self.grads = []
         self.variables = tf.trainable_variables()
-        """
         for idx, grad in enumerate(tf.gradients(self.loss, self.variables)):
             if grad is not None:
-                grads.append(tf.clip_by_value(grad, self.min_grad, self.max_grad))
+                self.grads.append(tf.clip_by_value(grad, self.min_grad, self.max_grad))
             else:
-                grads.append(grad)
+                self.grads.append(grad)
         """
         self.grads, _ = tf.clip_by_global_norm(tf.gradients(self.loss, self.variables), self.max_grad)
+        """
         self.optimize = self.optimizer.apply_gradients(zip(self.grads, self.variables), 
                 global_step=self.global_step)
-        
-        # self.optimize = self.optimizer.minimize(self.loss, var_list=self.variables)
     
     def initialize_embedding(self, word_embed):
         with tf.variable_scope("Word"):
