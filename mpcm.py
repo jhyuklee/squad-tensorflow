@@ -59,6 +59,7 @@ class MPCM(Basic):
             w_multiplied = tf.multiply(context_tiled_q_n, question_tiled_c_n)
             w_result = tf.reduce_sum(w_multiplied, 4)
 
+            print('\tmatching function', w_result)
             return w_result
 
         def full_matching(fw, bw):
@@ -101,9 +102,11 @@ class MPCM(Basic):
             print('\tmean matching', result)
             return result
        
-        w_matching = tf.get_variable('w_matching', [self.dim_perspective * 6, self.dim_rnn_cell],
-                initializer=tf.random_normal_initializer(), dtype=tf.float32)
-        matching_result = matching_function(w_matching, context, question)
+        with tf.device('/gpu:1'):
+            w_matching = tf.get_variable('w_matching', 
+                    [self.dim_perspective * 6, self.dim_rnn_cell],
+                    initializer=tf.random_normal_initializer(), dtype=tf.float32)
+            matching_result = matching_function(w_matching, context, question)
         
         full_fw, max_fw, mean_fw, full_bw, max_bw, mean_bw = tf.split(matching_result, axis=3,
                 num_or_size_splits=6)
@@ -165,6 +168,7 @@ class MPCM(Basic):
         context_filtered = self.filter_layer(context_embed, question_embed)
         print('# Filter_layer', context_filtered)
         
+        """
         # For skipping rep layer
         self.dim_rnn_cell = self.dim_embed_word / 2        
         aggregation = self.matching_layer(context_filtered, question_embed)
@@ -181,7 +185,6 @@ class MPCM(Basic):
 
         aggregation = self.aggregation_layer(matchings, self.context_maxlen, self.context_len)
         print('# Aggregation_layer', aggregation)
-        """
         
         start_logits, end_logits = self.prediction_layer(aggregation)
         print('# Prediction_layer', start_logits, end_logits)

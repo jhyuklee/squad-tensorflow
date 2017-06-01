@@ -42,8 +42,10 @@ def load_glove(dictionary, params):
     for word, word_idx in sorted(dictionary.items(), key=operator.itemgetter(1)):
         if word in glove:
             word_vector = glove[word]
-        else:
+        elif word == 'PAD':
             word_vector = [0.0] * params['dim_embed_word']
+        else:
+            word_vector = np.random.uniform(-1, 1, params['dim_embed_word'])
             unk_cnt += 1
         pretrained_vectors.append(word_vector)
 

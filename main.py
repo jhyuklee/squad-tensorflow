@@ -11,15 +11,15 @@ from dataset import read_data, build_dictionary, load_glove, preprocess
 from run import train, test
 
 flags = tf.app.flags
-flags.DEFINE_integer('train_epoch', 0, 'Training epoch')
+flags.DEFINE_integer('train_epoch', 100, 'Training epoch')
 flags.DEFINE_integer('test_epoch', 3, 'Test for every n training epoch')
-flags.DEFINE_integer("min_voca", 3, "Minimum frequency of word")
+flags.DEFINE_integer("min_voca", 0, "Minimum frequency of word")
 flags.DEFINE_integer("min_grad", -5, "Minimum gradient to clip")
 flags.DEFINE_integer("max_grad", 5, "Maximum gradient to clip")
-flags.DEFINE_integer("batch_size", 16, "Size of batch")
+flags.DEFINE_integer("batch_size", 4, "Size of batch")
 flags.DEFINE_integer("dim_perspective", 10, "Maximum number of perspective")
-flags.DEFINE_integer("dim_embed_word", 50, "Dimension of word embedding")
-flags.DEFINE_integer("dim_rnn_cell", 40, "Dimension of RNN cell")
+flags.DEFINE_integer("dim_embed_word", 300, "Dimension of word embedding")
+flags.DEFINE_integer("dim_rnn_cell", 100, "Dimension of RNN cell")
 flags.DEFINE_integer("dim_hidden", 200, "Dimension of hidden layer")
 flags.DEFINE_integer("rnn_layer", 1, "Layer number of RNN ")
 flags.DEFINE_float("rnn_dropout", 0.5, "Dropout of RNN cell")

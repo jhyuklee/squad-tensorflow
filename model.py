@@ -67,7 +67,6 @@ class Basic(object):
         #         with tf.device(d):
         self.start_logits, self.end_logits = self.build_model()
         self.optimize_loss(self.start_logits, self.end_logits)
-        #             tf.get_variable_scope().reuse_variables()
         self.save_settings()
         self.session.run(tf.global_variables_initializer())
        
