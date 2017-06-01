@@ -16,10 +16,10 @@ flags.DEFINE_integer("min_voca", 3, "Minimum frequency of word")
 flags.DEFINE_integer("min_grad", -5, "Minimum gradient to clip")
 flags.DEFINE_integer("max_grad", 5, "Maximum gradient to clip")
 flags.DEFINE_integer("max_perspective", 10, "Maximum number of perspective")
-flags.DEFINE_integer("batch_size", 3, "Size of batch")
-flags.DEFINE_integer("dim_embed_word", 100, "Dimension of word embedding")
+flags.DEFINE_integer("batch_size", 64, "Size of batch")
+flags.DEFINE_integer("dim_embed_word", 300, "Dimension of word embedding")
 flags.DEFINE_integer("dim_rnn_cell", 100, "Dimension of RNN cell")
-flags.DEFINE_integer("dim_hidden", 50, "Dimension of hidden layer")
+flags.DEFINE_integer("dim_hidden", 100, "Dimension of hidden layer")
 flags.DEFINE_integer("rnn_layer", 1, "Layer number of RNN ")
 flags.DEFINE_float("rnn_dropout", 0.5, "Dropout of RNN cell")
 flags.DEFINE_float("hidden_dropout", 0.5, "Dropout rate of hidden layer")
@@ -27,16 +27,17 @@ flags.DEFINE_float("embed_dropout", 0.8, "Dropout rate of embedding layer")
 flags.DEFINE_float("learning_rate", 1e-4, "Learning rate of the optimzier")
 flags.DEFINE_float("decay_rate", 0.99, "Decay rate of learning rate")
 flags.DEFINE_float("decay_step", 100, "Decay step of learning rate")
-flags.DEFINE_boolean("test", False, "True to max context length 5")
 flags.DEFINE_boolean("embed", True, "True to embed words")
 flags.DEFINE_boolean("embed_pretrained", True, "True to use pretrained embed words")
 flags.DEFINE_boolean("embed_trainable", False, "True to optimize embedded words")
+flags.DEFINE_boolean("test", False, "True to max iteration 5")
+flags.DEFINE_boolean("debug", False, "True to show debug message")
 
 flags.DEFINE_string("model", "m", "b: basic, m: mpcm")
 flags.DEFINE_string('train_path', './data/train-v1.1.json', 'Training dataset path')
 flags.DEFINE_string('dev_path', './data/dev-v1.1.json',  'Development dataset path')
 flags.DEFINE_string('pred_path', './result/dev-v1.1-pred.json', 'Prediction output path')
-flags.DEFINE_string('glove_path', '~/embed_data/glove.6B.100d.txt', 'Prediction output path')
+flags.DEFINE_string('glove_path', '~/embed_data/glove.6B.300d.txt', 'Prediction output path')
 flags.DEFINE_string('checkpoint_dir', './result/ckpt/', 'Checkpoint directory')
 FLAGS = flags.FLAGS
 
@@ -80,20 +81,19 @@ def main(_):
         - title
     """
     # Preprocess dataset
-    dictionary, rev_dictionary, c_maxlen, q_maxlen = build_dictionary(train_dataset, saved_params)
-    c_maxlen = 5 if saved_params['test'] else c_maxlen
-
-    if saved_params['embed_pretrained']:
-        pretrained_glove = load_glove(dictionary, saved_params)
-    else:
-        pretrained_glove = None
+    dictionary, rev_dict, c_maxlen, q_maxlen = build_dictionary(train_dataset, saved_params)
 
     train_dataset = preprocess(train_dataset, dictionary, c_maxlen, q_maxlen)
     dev_dataset = preprocess(dev_dataset, dictionary, c_maxlen, q_maxlen)
     saved_params['context_maxlen'] = c_maxlen
     saved_params['question_maxlen'] = q_maxlen
-    saved_params['dim_word'] = len(dictionary)
+    saved_params['voca_size'] = len(dictionary)
     saved_params['dim_output'] = c_maxlen
+    
+    if saved_params['embed_pretrained']:
+        pretrained_glove = load_glove(dictionary, saved_params)
+    else:
+        pretrained_glove = None
 
     # Copy params, ready for validation
     # TODO: Validation parameters

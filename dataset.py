@@ -134,7 +134,8 @@ def build_dictionary(dataset, params):
 
 
 def preprocess(dataset, dictionary, c_maxlen, q_maxlen):
-    cqa_set = [] 
+    cqa_set = []
+    cnt = 0
 
     for d_idx, document in enumerate(dataset):
         for p_idx, paragraph in enumerate(document['paragraphs']):
@@ -150,6 +151,7 @@ def preprocess(dataset, dictionary, c_maxlen, q_maxlen):
                 pass
             qa_set = []
             for qa in paragraph['qas']:
+                cnt += 1
                 qa_item = {}
                 question = qa['question']
                 answers = qa['answers']
@@ -167,7 +169,7 @@ def preprocess(dataset, dictionary, c_maxlen, q_maxlen):
 
     # print('\nis preprocessed as \n')
     # print(cqa_set[0])
-    print('Dataset length:', len(cqa_set))
+    print('Passage: %d, Question: %d' % (len(cqa_set), cnt))
 
     return cqa_set
 

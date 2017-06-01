@@ -11,8 +11,8 @@ def train(model, dataset, params):
     mini_batch = []
     ground_truths = []
     context_raws = []
+    g_norm_list = []
     total_f1 = total_em = total_cnt = 0
-
 
     for dataset_idx, dataset_item in enumerate(dataset):
         context = dataset_item['c']
@@ -31,12 +31,12 @@ def train(model, dataset, params):
            
             # Run and clear mini-batch
             if (len(mini_batch) == batch_size) or (dataset_idx == len(dataset) - 1):
-                batch_context = np.array([c for c, _, _, _, _, _ in mini_batch])
-                batch_context_len = np.array([c_len for _, c_len, _, _, _, _ in mini_batch])
-                batch_question = np.array([q for _, _, q, _, _, _ in mini_batch])
-                batch_question_len = np.array([q_len for _, _, _, q_len, _, _ in mini_batch])
-                batch_answer_start = np.array([a_s for _, _, _, _, a_s, _ in mini_batch])
-                batch_answer_end = np.array([a_e for _, _, _, _, _, a_e in mini_batch])
+                batch_context = np.array([b[0] for b in mini_batch])
+                batch_context_len = np.array([b[1] for b in mini_batch])
+                batch_question = np.array([b[2] for b in mini_batch])
+                batch_question_len = np.array([b[3] for b in mini_batch])
+                batch_answer_start = np.array([b[4] for b in mini_batch])
+                batch_answer_end = np.array([b[5] for b in mini_batch])
 
                 feed_dict = {model.context: batch_context,
                         model.context_len: batch_context_len,
@@ -64,28 +64,50 @@ def train(model, dataset, params):
                         print('a', batch_answer_end[kk])
                     """
                 
-                    start_logits, end_logits = sess.run([model.start_logits, model.end_logits],
-                        feed_dict=feed_dict)
+                    grads, start_logits, end_logits = sess.run(
+                            [model.grads, model.start_logits, model.end_logits], 
+                            feed_dict=feed_dict)
                     start_idx = np.argmax(start_logits, 1)
                     end_idx = np.argmax(end_logits, 1)
                     predictions = []
-                    print()
+
+                    dprint('', params['debug'])
                     for c, s_idx, e_idx in zip(context_raws, start_idx, end_idx):
-                        print('start_idx / end_idx', s_idx, e_idx)
+                        # dprint('start_idx / end_idx %d/%d'% (s_idx, e_idx), params['debug'])
                         predictions.append(' '.join([w for w in c[s_idx: e_idx+1]]))
-                    print('s', start_logits[0][:10])
-                    print('s', start_logits[1][:10])
-                    print('e', end_logits[0][:10])
-                    print('e', end_logits[1][:10])
+                   
+                    dprint('shape of grad/sl/el = %s/%s/%s' % (np.asarray(grads).shape, 
+                                np.asarray(start_logits).shape, 
+                                np.asarray(end_logits).shape), params['debug'])
+                    g_norm_group = []
+                    for gs in grads:
+                        np_gs = np.asarray(gs)
+                        g_norm = np.linalg.norm(np_gs)
+                        norm_size = np_gs.shape
+                        g_norm_group.append(g_norm)
+                        dprint('g:' + str(g_norm) + str(norm_size), params['debug'])
+                    g_norm_list.append(g_norm_group)
+
+                    for sl, el in zip(start_logits, end_logits):
+                        # dprint('s:' + str(sl[:10]), params['debug'])
+                        # dprint('e:' + str(el[:10]), params['debug'])
+                        pass
+
                     em = f1 = 0 
                     for prediction, ground_truth in zip(predictions, ground_truths):
-                        print('pred', prediction)
-                        print('real', ground_truth)
-                        em += metric_max_over_ground_truths(
+                        single_em = metric_max_over_ground_truths(
                                 exact_match_score, prediction, ground_truth)
-                        f1 += metric_max_over_ground_truths(
+                        single_f1 = metric_max_over_ground_truths(
                                 f1_score, prediction, ground_truth)
-                    print()
+                        
+                        prediction = prediction[:10] if len(prediction) > 10 else prediciton
+                        dprint('pred: ' + str(prediction), params['debug'] and (single_f1 > 0))
+                        dprint('real: ' + str(ground_truth), params['debug'] and (single_f1 > 0))
+
+                        em += single_em
+                        f1 += single_f1
+                    
+                    dprint('', params['debug'])
                     
                     _progress = progress(dataset_idx / float(len(dataset)))
                     _progress += "loss: %.3f, f1: %.3f, em: %.3f, progress: %d/%d" % (loss, f1 /
@@ -93,9 +115,8 @@ def train(model, dataset, params):
                     sys.stdout.write(_progress)
                     sys.stdout.flush()
                     
-                    if dataset_idx / 5 == 50:
-                        # sys.exit()
-                        pass
+                    if dataset_idx / 5 == 5 and params['test']:
+                        sys.exit()
 
                     total_f1 += f1 / len(predictions)
                     total_em += em / len(predictions)
@@ -109,6 +130,16 @@ def train(model, dataset, params):
     total_f1 /= total_cnt
     total_em /= total_cnt
     print('\nAverage f1: %.3f, em: %.3f' % (total_f1, total_em)) 
+
+    # Write norm information
+    if params['debug']:
+        f = open('./result/norm_info.txt', 'a')
+        f.write('Norm Info\n')
+        for g_norm_group in g_norm_list:
+            s = '\t'.join([str(g) for g in g_norm_group]) + '\n'
+            f.write(s)
+        f.close()
+    # sys.exit()
 
 
 def test(model, dataset, params):

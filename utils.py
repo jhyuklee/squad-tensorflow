@@ -19,3 +19,7 @@ def progress(_progress):
     text = "\rPercent: [%s] %.2f%% %s" % ("#" * block + " " * (bar_length-block), _progress * 100, status)
 
     return text
+
+def dprint(msg, debug):
+    if debug:
+        print(msg)

@@ -7,16 +7,17 @@ from ops import *
 
 class MPCM(Basic):
     def __init__(self, params, initializer):
-        self.max_perspective = params['max_perspective']
         super(MPCM, self).__init__(params, initializer)
+        self.max_perspective = params['max_perspective']
 
     def filter_layer(self, context, question):
         c_norm = tf.norm(context, axis=2, keep_dims=True)
         q_norm = tf.norm(question, axis=2, keep_dims=True)
-        n_context = context / c_norm
-        n_question = question / q_norm
+        n_context = context / (c_norm + tf.constant(1e-5))
+        n_question = question / (q_norm + tf.constant(1e-5))
         tr_question = tf.transpose(n_question, [0, 2, 1])
         similarity = tf.matmul(n_context, tr_question)
+        print(similarity)
         max_similarity = tf.reduce_max(similarity, 2, keep_dims=True)
         return tf.multiply(context, max_similarity)
 
@@ -121,21 +122,21 @@ class MPCM(Basic):
             return outputs
 
     def prediction_layer(self, inputs):
-        batch_size = tf.shape(inputs)[0]
-        start_logits = tf.squeeze(linear(inputs=inputs,
+        start_logits = linear(inputs=inputs,
             output_dim=1, 
-            scope='Output_s'))
-        start_logits = tf.reshape(start_logits, [batch_size, self.dim_output])
+            scope='Output_s')
+        start_logits = tf.reshape(start_logits, [-1, self.dim_output])
 
-        end_logits = tf.squeeze(linear(inputs=inputs,
+        end_logits = linear(inputs=inputs,
             output_dim=1, 
-            scope='Output_e'))
-        end_logits = tf.reshape(end_logits, [batch_size, self.dim_output])
-
+            scope='Output_e')
+        end_logits = tf.reshape(end_logits, [-1, self.dim_output])
+        
         return start_logits, end_logits
 
     def build_model(self):
         print("### Building MPCM model ###")
+
         context_embed = dropout(embedding_lookup(
                 inputs=self.context,
                 voca_size=self.voca_size,
@@ -143,7 +144,7 @@ class MPCM(Basic):
                 initializer=self.initializer, 
                 trainable=self.embed_trainable,
                 reuse=True, scope='Word'), self.embed_dropout)
-
+        
         question_embed = dropout(embedding_lookup(
                 inputs=self.question,
                 voca_size=self.voca_size,
@@ -157,18 +158,20 @@ class MPCM(Basic):
 
         context_rep = self.representation_layer(context_filtered, self.context_len,
                 self.context_maxlen, scope='Context')
+        print('# Representation_layer', context_rep)
+        
+        """
         question_rep = self.representation_layer(question_embed, self.question_len,
                 self.question_maxlen, scope='Question')
-        print('# Representation_layer', context_rep, question_rep)
+        # matchings = self.matching_layer(context_rep, question_rep)
+        matchings = self.test_layer(context_rep, None)
+        print('# Matching_layer', matchings)
 
-        # matching_vectors = self.matching_layer(context_rep, question_rep)
-        matching_vectors = self.test_layer(context_rep, question_rep)
-        print('# Matching_layer', matching_vectors)
-
-        aggregation = self.aggregation_layer(matching_vectors, self.context_maxlen, self.context_len)
+        aggregation = self.aggregation_layer(matchings, self.context_maxlen, self.context_len)
         print('# Aggregation_layer', aggregation)
- 
-        start_logits, end_logits = self.prediction_layer(aggregation)
+        """
+        
+        start_logits, end_logits = self.prediction_layer(context_rep)
         print('# Prediction_layer', start_logits, end_logits)
 
         return start_logits, end_logits

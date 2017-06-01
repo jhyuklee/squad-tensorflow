@@ -48,11 +48,10 @@ class Basic(object):
 
         # model settings
         self.global_step = tf.Variable(0, name="step", trainable=False)
-        self.learning_rate = tf.train.exponential_decay(
-                self.learning_rate, self.global_step,
-                self.decay_step, self.decay_rate, staircase=True)
+        # self.learning_rate = tf.train.exponential_decay(
+        #         self.learning_rate, self.global_step,
+        #         self.decay_step, self.decay_rate, staircase=True)
         self.optimizer = tf.train.AdamOptimizer(self.learning_rate)
-        # self.optimizer = tf.train.GradientDescentOptimizer(self.learning_rate)
 
         # model build
         self.embed_writer = tf.summary.FileWriter(self.checkpoint_dir) # self.session.graph
@@ -149,8 +148,8 @@ class Basic(object):
             else:
                 grads.append(grad)
         """
-        grads, _ = tf.clip_by_global_norm(tf.gradients(self.loss, self.variables), self.max_grad)
-        self.optimize = self.optimizer.apply_gradients(zip(grads, self.variables), 
+        self.grads, _ = tf.clip_by_global_norm(tf.gradients(self.loss, self.variables), self.max_grad)
+        self.optimize = self.optimizer.apply_gradients(zip(self.grads, self.variables), 
                 global_step=self.global_step)
         
         # self.optimize = self.optimizer.minimize(self.loss, var_list=self.variables)
