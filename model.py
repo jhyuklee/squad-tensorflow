@@ -10,7 +10,6 @@ class Basic(object):
         # session settings
         config = tf.ConfigProto(device_count={'GPU':1})
         config.gpu_options.allow_growth = True
-        config.gpu_options.per_process_gpu_memory_fraction = 0.5
         self.session = tf.Session(config=config)
         self.params = params
         self.model = params['model']

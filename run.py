@@ -6,6 +6,7 @@ from utils import *
 
 
 def train(model, dataset, params):
+    print('### Training ###')
     sess = model.session
     batch_size = params['batch_size']
     mini_batch = []
@@ -99,10 +100,13 @@ def train(model, dataset, params):
                                 exact_match_score, prediction, ground_truth)
                         single_f1 = metric_max_over_ground_truths(
                                 f1_score, prediction, ground_truth)
-                        
-                        prediction = prediction[:10] if len(prediction) > 10 else prediciton
-                        dprint('pred: ' + str(prediction), params['debug'] and (single_f1 > 0))
-                        dprint('real: ' + str(ground_truth), params['debug'] and (single_f1 > 0))
+
+                        prediction = prediction.split(' ') 
+                        prediction = prediction[:10] if len(prediction) > 10 else prediction
+                        dprint('pred: ' + str(' '.join(prediction)), 
+                                params['debug'] and (single_f1 > 0))
+                        dprint('real: ' + str(ground_truth), 
+                                params['debug'] and (single_f1 > 0))
 
                         em += single_em
                         f1 += single_f1
@@ -143,5 +147,6 @@ def train(model, dataset, params):
 
 
 def test(model, dataset, params):
+    print('\n### Testing ###')
     print("loss: %.3f, f1: %.3f, em: %.3f" % (0, 0, 0))
 
