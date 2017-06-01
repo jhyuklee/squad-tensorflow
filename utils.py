@@ -20,6 +20,6 @@ def progress(_progress):
 
     return text
 
-def dprint(msg, debug):
+def dprint(msg, debug, end='\n'):
     if debug:
-        print(msg)
+        print(msg, end=end)

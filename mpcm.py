@@ -165,7 +165,6 @@ class MPCM(Basic):
         context_filtered = self.filter_layer(context_embed, question_embed)
         print('# Filter_layer', context_filtered)
         
-        """
         # For skipping rep layer
         self.dim_rnn_cell = self.dim_embed_word / 2        
         aggregation = self.matching_layer(context_filtered, question_embed)
@@ -182,6 +181,7 @@ class MPCM(Basic):
 
         aggregation = self.aggregation_layer(matchings, self.context_maxlen, self.context_len)
         print('# Aggregation_layer', aggregation)
+        """
         
         start_logits, end_logits = self.prediction_layer(aggregation)
         print('# Prediction_layer', start_logits, end_logits)

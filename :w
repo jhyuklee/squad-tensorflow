@@ -8,10 +8,7 @@ class Basic(object):
     def __init__(self, params, initializer):
 
         # session settings
-        config = tf.ConfigProto(
-                allow_soft_placement = True,
-                device_count={'GPU':2}
-        )
+        config = tf.ConfigProto(device_count={'GPU':2})
         config.gpu_options.allow_growth = True
         self.session = tf.Session(config=config)
         self.params = params
@@ -62,12 +59,11 @@ class Basic(object):
            embeddings = self.initialize_embedding(initializer)
 
         # build model w/ multi-gpu
-        # with tf.variable_scope(tf.get_variable_scope()):
-        #     for d in ['/gpu:0', '/gpu:1']:
-        #         with tf.device(d):
-        self.start_logits, self.end_logits = self.build_model()
+        for d in ['/gpu:0', '/gpu:1']:
+            with tf.device(d):
+                self.start_logits, self.end_logits = self.build_model()
+                tf.get_variable_scope().reuse_variables()
         self.optimize_loss(self.start_logits, self.end_logits)
-        #             tf.get_variable_scope().reuse_variables()
         self.save_settings()
         self.session.run(tf.global_variables_initializer())
        
