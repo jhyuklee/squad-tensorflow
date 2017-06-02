@@ -102,11 +102,9 @@ class MPCM(Basic):
             print('\tmean matching', result)
             return result
        
-        with tf.device('/gpu:1'):
-            w_matching = tf.get_variable('w_matching', 
-                    [self.dim_perspective * 6, self.dim_rnn_cell],
-                    initializer=tf.random_normal_initializer(), dtype=tf.float32)
-            matching_result = matching_function(w_matching, context, question)
+        w_matching = tf.get_variable('w_matching', [self.dim_perspective * 6, self.dim_rnn_cell],
+                initializer=tf.random_normal_initializer(), dtype=tf.float32)
+        matching_result = matching_function(w_matching, context, question)
         
         full_fw, max_fw, mean_fw, full_bw, max_bw, mean_bw = tf.split(matching_result, axis=3,
                 num_or_size_splits=6)
@@ -171,23 +169,26 @@ class MPCM(Basic):
         """
         # For skipping rep layer
         self.dim_rnn_cell = self.dim_embed_word / 2        
-        aggregation = self.matching_layer(context_filtered, question_embed)
+        aggregates = self.matching_layer(context_filtered, question_embed)
         """
 
-        context_rep = self.representation_layer(context_filtered, self.context_len,
-                self.context_maxlen, scope='Context')
-        question_rep = self.representation_layer(question_embed, self.question_len,
-                self.question_maxlen, scope='Question')
-        print('# Representation_layer', context_rep, question_rep)
+        with tf.device('/gpu:0'):
+            context_rep = self.representation_layer(context_filtered, self.context_len,
+                    self.context_maxlen, scope='Context')
+            question_rep = self.representation_layer(question_embed, self.question_len,
+                    self.question_maxlen, scope='Question')
+            print('# Representation_layer', context_rep, question_rep)
 
-        matchings = self.matching_layer(context_rep, question_rep)
-        print('# Matching_layer', matchings)
+        with tf.device('/gpu:1'):
+            matchings = self.matching_layer(context_rep, question_rep)
+            print('# Matching_layer', matchings)
 
-        aggregation = self.aggregation_layer(matchings, self.context_maxlen, self.context_len)
-        print('# Aggregation_layer', aggregation)
-        
-        start_logits, end_logits = self.prediction_layer(aggregation)
-        print('# Prediction_layer', start_logits, end_logits)
+        with tf.device('/gpu:0'):
+            aggregates = self.aggregation_layer(matchings, self.context_maxlen, self.context_len)
+            print('# Aggregation_layer', aggregates)
+            
+            start_logits, end_logits = self.prediction_layer(aggregates)
+            print('# Prediction_layer', start_logits, end_logits)
 
         return start_logits, end_logits
  
