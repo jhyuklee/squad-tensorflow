@@ -29,21 +29,59 @@ class MPCM(Basic):
             return outputs
     
     def matching_layer(self, context, question):
+
+        def test_function(w, c, q):
+            # [B, C, 2H] => [C, B, 2H]
+            c_tr = tf.transpose(c, [1, 0, 2])
+
+            # [B, Q, 2H] => [Q, B, 2H] => [Q, B, 3L, 2H] => [Q, B, 6L, H]
+            q_tr = tf.transpose(q, [1, 0, 2])
+            q_tiled = tf.tile(tf.expand_dims(q_tr, 2), [1, 1, self.dim_perspective * 3, 1])
+            q_fb = tf.reshape(q_tiled,
+                    [self.question_maxlen, -1, self.dim_perspective * 6, self.dim_rnn_cell])
+            q_w = tf.multiply(q_fb, w)
+            
+            def do_matching(a, b, l):
+                # [B, 2H] => [B, 3L, 2H] => [B, 6L, H]
+                a_tiled = tf.tile(tf.expand_dims(a, 1), [1, self.dim_perspective * 3, 1])
+                a_fb = tf.reshape(a_tiled, [-1, self.dim_perspective * 6, self.dim_rnn_cell])
+                a_w = tf.multiply(a_fb, l)
+
+                # Normalize
+                a_norm = tf.norm(a_w, axis=2, keep_dims=True)
+                b_norm = tf.norm(b, axis=3, keep_dims=True)
+                a_w = a_w / (a_norm + tf.constant(1e-10))
+                b = b / (b_norm + tf.constant(1e-10))
+                
+                # [Q, B, 6L]
+                return tf.reduce_sum(tf.multiply(a_w, b), 3)
+
+            # [C, B, 2H] X [Q, B, 6L, H] => [C, Q, B, 6L]
+            q_shape = tf.shape(q_tr)
+            init = tf.zeros([q_shape[0], q_shape[1], self.dim_perspective * 6])
+            w_result = tf.scan(lambda a, x: do_matching(x, q_w, w), c_tr, init)
+            print('w_result', w_result)
+            
+            # [C, Q, B, 6L] => [B, C, Q, 6L]
+            w_tr = tf.transpose(w_result, [2, 0, 1, 3])
+            print('\tmatching function', w_tr)
+            return w_tr
         
         def matching_function(w, c, q):
-            # [B, C, 2H] => [B, C, 3L, 2H] => [B, C, 6L, H] => [C, B, 6L, H]
-            c_tiled = tf.tile(tf.expand_dims(c, 2), [1, 1, self.dim_perspective * 3, 1])
-            c_fb = tf.reshape(c_tiled, 
-                    [-1, self.context_maxlen, self.dim_perspective * 6, self.dim_rnn_cell])
-            c_w = tf.multiply(c_fb, w)
-            c_t = tf.transpose(c_w, [1, 0, 2, 3])
+            with tf.device('/gpu:0'):
+                # [B, C, 2H] => [B, C, 3L, 2H] => [B, C, 6L, H] => [C, B, 6L, H]
+                c_tiled = tf.tile(tf.expand_dims(c, 2), [1, 1, self.dim_perspective * 3, 1])
+                c_fb = tf.reshape(c_tiled, 
+                        [-1, self.context_maxlen, self.dim_perspective * 6, self.dim_rnn_cell])
+                c_w = tf.multiply(c_fb, w)
+                c_t = tf.transpose(c_w, [1, 0, 2, 3])
 
-            # [B, Q, 2H] => [B, Q, 3L, 2H] => [B, Q, 6L, H] => [Q, B, 6L, H]
-            q_tiled = tf.tile(tf.expand_dims(q, 2), [1, 1, self.dim_perspective * 3, 1])
-            q_fb = tf.reshape(q_tiled,
-                    [-1, self.question_maxlen, self.dim_perspective * 6, self.dim_rnn_cell])
-            q_w = tf.multiply(q_fb, w)
-            q_t = tf.transpose(q_w, [1, 0, 2, 3])
+                # [B, Q, 2H] => [B, Q, 3L, 2H] => [B, Q, 6L, H] => [Q, B, 6L, H]
+                q_tiled = tf.tile(tf.expand_dims(q, 2), [1, 1, self.dim_perspective * 3, 1])
+                q_fb = tf.reshape(q_tiled,
+                        [-1, self.question_maxlen, self.dim_perspective * 6, self.dim_rnn_cell])
+                q_w = tf.multiply(q_fb, w)
+                q_t = tf.transpose(q_w, [1, 0, 2, 3])
             
             def reduce_norm_mul(a, b):
                 a_norm = tf.norm(a, axis=2, keep_dims=True)
@@ -53,14 +91,17 @@ class MPCM(Basic):
                 result = tf.reduce_sum(tf.multiply(a, b), 3)
                 return result
 
-            # [C, B, 6L, H] X [Q, B, 6L, H] => [C, Q, B, 6L]
-            q_shape = tf.shape(q_w)
-            init = tf.zeros([q_shape[0], q_shape[1], q_shape[2]])
-            w_result = tf.scan(lambda a, x: reduce_norm_mul(x, q_t), c_t, init)
-        
-            # [C, Q, B, 6L] => [B, C, Q, 6L]
-            w_tr = tf.transpose(w_result, [2, 0, 1, 3])
-            print('\tmatching function', w_tr)
+            with tf.device('/gpu:1'):
+                # [C, B, 6L, H] X [Q, B, 6L, H] => [C, Q, B, 6L]
+                q_shape = tf.shape(q_w)
+                init = tf.zeros([q_shape[0], q_shape[1], q_shape[2]])
+                w_result = tf.scan(lambda a, x: reduce_norm_mul(x, q_t), c_t, init)
+            
+            with tf.device('/gpu:0'):
+                # [C, Q, B, 6L] => [B, C, Q, 6L]
+                w_tr = tf.transpose(w_result, [2, 0, 1, 3])
+                print('\tmatching function', w_tr)
+
             return w_tr
 
         def full_matching(fw, bw):
@@ -107,18 +148,19 @@ class MPCM(Basic):
                 initializer=tf.random_normal_initializer(), dtype=tf.float32)
         matching_result = matching_function(w_matching, context, question)
         
-        full_fw, full_bw, max_fw, max_bw, mean_fw, mean_bw = tf.split(matching_result, axis=3,
-                num_or_size_splits=6)
-        full_result = full_matching(full_fw, full_bw)
-        max_result = max_matching(max_fw, max_bw)
-        mean_result = mean_matching(mean_fw, mean_bw)
+        with tf.device('/gpu:0'):
+            full_fw, full_bw, max_fw, max_bw, mean_fw, mean_bw = tf.split(matching_result, axis=3,
+                    num_or_size_splits=6)
+            full_result = full_matching(full_fw, full_bw)
+            max_result = max_matching(max_fw, max_bw)
+            mean_result = mean_matching(mean_fw, mean_bw)
         
-        # full_result = tf.Print(full_result, [full_result], 'full', summarize=10)
-        # max_result = tf.Print(max_result, [max_result], 'max', summarize=10)
-        # mean_result = tf.Print(mean_result, [mean_result], 'mean', summarize=10)
+            # full_result = tf.Print(full_result, [full_result], 'full', summarize=10)
+            # max_result = tf.Print(max_result, [max_result], 'max', summarize=10)
+            # mean_result = tf.Print(mean_result, [mean_result], 'mean', summarize=10)
 
-        result = tf.concat([full_result, max_result, mean_result], axis=2)
-        print('\tmatching_result', result)
+            result = tf.concat([full_result, max_result, mean_result], axis=2)
+            print('\tmatching_result', result)
         
         return result
 
@@ -180,9 +222,8 @@ class MPCM(Basic):
                     self.question_maxlen, scope='Question')
             print('# Representation_layer', context_rep, question_rep)
 
-        with tf.device('/gpu:1'):
-            matchings = self.matching_layer(context_rep, question_rep)
-            print('# Matching_layer', matchings)
+        matchings = self.matching_layer(context_rep, question_rep)
+        print('# Matching_layer', matchings)
 
         with tf.device('/gpu:0'):
             aggregates = self.aggregation_layer(matchings, self.context_maxlen, self.context_len)
