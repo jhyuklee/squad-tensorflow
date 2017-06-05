@@ -168,8 +168,7 @@ class MPCM(Basic):
         with tf.variable_scope('Aggregation') as scope:
             fw_cell = lstm_cell(self.dim_rnn_cell, self.rnn_layer, self.rnn_dropout)
             bw_cell = lstm_cell(self.dim_rnn_cell, self.rnn_layer, self.rnn_dropout)
-            # r_inputs = rnn_reshape(inputs, self.dim_perspective * 6, max_length)
-            r_inputs = rnn_reshape(inputs, self.dim_rnn_cell, max_length)
+            r_inputs = rnn_reshape(inputs, self.dim_perspective * 6, max_length)
             outputs = bi_rnn_model(r_inputs, length, fw_cell, bw_cell)
             print('\tinputs', inputs)
             print('\toutputs', outputs)
@@ -210,8 +209,10 @@ class MPCM(Basic):
 
             context_filtered = self.filter_layer(context_embed, question_embed)
             print('# Filter_layer', context_filtered)
-            
+          
             """
+            # For skipping matching layer
+            aggregates = context_filtered
             # For skipping rep layer
             self.dim_rnn_cell = int(self.dim_embed_word / 2)
             aggregates = self.matching_layer(context_filtered, question_embed)
@@ -227,7 +228,7 @@ class MPCM(Basic):
         print('# Matching_layer', matchings)
 
         with tf.device('/gpu:0'):
-            aggregates = self.aggregation_layer(context_filtered, self.context_maxlen, self.context_len)
+            aggregates = self.aggregation_layer(matchings, self.context_maxlen, self.context_len)
             print('# Aggregation_layer', aggregates)
                 
             start_logits, end_logits = self.prediction_layer(aggregates)

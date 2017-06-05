@@ -136,7 +136,7 @@ def train(model, dataset, params):
     # Average result
     total_f1 /= total_cnt
     total_em /= total_cnt
-    print('\nAverage f1: %.3f, em: %.3f' % (total_f1, total_em)) 
+    print('\nAverage f1: %.3f, em: %.3f' % (total_f1, total_em))
 
     # Write norm information
     if params['debug']:
