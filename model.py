@@ -10,6 +10,7 @@ class Basic(object):
         # session settings
         config = tf.ConfigProto(
                 allow_soft_placement = True,
+                # log_device_placement = True,
                 device_count={'GPU':2}
         )
         config.gpu_options.allow_growth = True
