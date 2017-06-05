@@ -5,7 +5,7 @@ from evaluate import *
 from utils import *
 
 
-def train(model, dataset, params):
+def train(model, dataset, epoch, params):
     print('### Training ###')
     sess = model.session
     batch_size = params['batch_size']
@@ -117,8 +117,10 @@ def train(model, dataset, params):
                     dprint('', params['debug'])
                     
                     _progress = progress(dataset_idx / float(len(dataset)))
-                    _progress += "loss: %.3f, f1: %.3f, em: %.3f, progress: %d/%d" % (loss, f1 /
-                            len(predictions), em / len(predictions), dataset_idx, len(dataset)) 
+                    _progress += "loss: %.3f, f1: %.3f, em: %.3f,\
+                            progress: %d/%d, ep: %d" % \
+                            (loss, f1 / len(predictions), em / len(predictions), 
+                            dataset_idx, len(dataset), epoch) 
                     sys.stdout.write(_progress)
                     sys.stdout.flush()
                     

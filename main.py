@@ -16,9 +16,9 @@ flags.DEFINE_integer('test_epoch', 3, 'Test for every n training epoch')
 flags.DEFINE_integer("min_voca", 0, "Minimum frequency of word")
 flags.DEFINE_integer("min_grad", -5, "Minimum gradient to clip")
 flags.DEFINE_integer("max_grad", 5, "Maximum gradient to clip")
-flags.DEFINE_integer("batch_size", 32, "Size of batch (8)")
-flags.DEFINE_integer("dim_perspective", 5, "Maximum number of perspective (20)")
-flags.DEFINE_integer("dim_embed_word", 100, "Dimension of word embedding (300)")
+flags.DEFINE_integer("batch_size", 8, "Size of batch (8)")
+flags.DEFINE_integer("dim_perspective", 20, "Maximum number of perspective (20)")
+flags.DEFINE_integer("dim_embed_word", 300, "Dimension of word embedding (300)")
 flags.DEFINE_integer("dim_rnn_cell", 100, "Dimension of RNN cell (100)")
 flags.DEFINE_integer("dim_hidden", 200, "Dimension of hidden layer")
 flags.DEFINE_integer("rnn_layer", 1, "Layer number of RNN ")
@@ -51,7 +51,7 @@ def run(model, params, train_dataset, dev_dataset):
 
     for epoch_idx in range(train_epoch):
         print("\nEpoch %d" % (epoch_idx + 1))
-        train(model, train_dataset, params)
+        train(model, train_dataset, epoch_idx + 1, params)
         model.save(params['checkpoint_dir'], epoch_idx+1)
         if epoch_idx % test_epoch == 0:
             test(model, dev_dataset, params)

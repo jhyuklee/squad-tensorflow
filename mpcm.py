@@ -213,6 +213,8 @@ class MPCM(Basic):
             """
             # For skipping matching layer
             aggregates = context_filtered
+            """
+            """
             # For skipping rep layer
             self.dim_rnn_cell = int(self.dim_embed_word / 2)
             aggregates = self.matching_layer(context_filtered, question_embed)
