@@ -10,6 +10,7 @@ class Basic(object):
         # session settings
         config = tf.ConfigProto(
                 allow_soft_placement = True,
+                log_device_placement = True,
                 device_count={'GPU':2}
         )
         config.gpu_options.allow_growth = True
@@ -153,9 +154,6 @@ class Basic(object):
                 self.grads.append(tf.clip_by_value(grad, self.min_grad, self.max_grad))
             else:
                 self.grads.append(grad)
-        """
-        self.grads, _ = tf.clip_by_global_norm(tf.gradients(self.loss, self.variables), self.max_grad)
-        """
         self.optimize = self.optimizer.apply_gradients(zip(self.grads, self.variables), 
                 global_step=self.global_step)
     
