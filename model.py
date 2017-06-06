@@ -62,10 +62,7 @@ class Basic(object):
         if params['embed_pretrained']:
            embeddings = self.initialize_embedding(initializer)
 
-        # build model w/ multi-gpu
-        # with tf.variable_scope(tf.get_variable_scope()):
-        #     for d in ['/gpu:0', '/gpu:1']:
-        #         with tf.device(d):
+        # build model
         self.start_logits, self.end_logits = self.build_model()
         self.optimize_loss(self.start_logits, self.end_logits)
         self.save_settings()
