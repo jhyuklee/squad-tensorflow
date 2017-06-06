@@ -38,19 +38,23 @@ def load_glove(dictionary, params):
     print('Glove Loading Done', elapsed_time, len(glove))
 
     pretrained_vectors = []
+    new_dict = {}
     unk_cnt = 0
+    unknown_vector = np.random.uniform(-1, 1, params['dim_embed_word'])
+    new_dict['UNK'] = len(new_dict)
+    new_dict['PAD'] = len(new_dict)
+    pretrained_vectors.append(unknown_vector)
+    pretrained_vectors.append([0.0] * params['dim_embed_word'])
     for word, word_idx in sorted(dictionary.items(), key=operator.itemgetter(1)):
         if word in glove:
-            word_vector = glove[word]
-        elif word == 'PAD':
-            word_vector = [0.0] * params['dim_embed_word']
+            new_dict[word] = len(new_dict)
+            pretrained_vectors.append(glove[word])
         else:
-            word_vector = np.random.uniform(-1, 1, params['dim_embed_word'])
             unk_cnt += 1
-        pretrained_vectors.append(word_vector)
 
     print('Pretrained vectors', np.asarray(pretrained_vectors).shape, 'unknown', unk_cnt)
-    return np.asarray(pretrained_vectors).astype(np.float32)
+    print('Dictionary Change', len(dictionary), 'to', len(new_dict))
+    return np.asarray(pretrained_vectors).astype(np.float32), new_dict
 
 
 def tokenize(words):
@@ -87,7 +91,7 @@ def word2cnt(words, counter):
             counter[word] += 1
 
 
-def build_dictionary(dataset, params):
+def build_dict(dataset, params):
     dictionary = {}
     reverse_dictionary = {}
     counter = {}

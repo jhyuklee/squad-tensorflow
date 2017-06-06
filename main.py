@@ -7,7 +7,7 @@ import argparse
 from model import Basic
 from mpcm import MPCM
 from time import gmtime, strftime
-from dataset import read_data, build_dictionary, load_glove, preprocess
+from dataset import read_data, build_dict, load_glove, preprocess
 from run import train, test
 
 flags = tf.app.flags
@@ -53,7 +53,7 @@ def run(model, params, train_dataset, dev_dataset):
         print("\nEpoch %d" % (epoch_idx + 1))
         train(model, train_dataset, epoch_idx + 1, params)
         model.save(params['checkpoint_dir'], epoch_idx+1)
-        if epoch_idx % test_epoch == 0:
+        if (epoch_idx + 1) % test_epoch == 0:
             test(model, dev_dataset, params)
     
     test(model, dev_dataset, params)
@@ -84,7 +84,11 @@ def main(_):
         - title
     """
     # Preprocess dataset
-    dictionary, rev_dict, c_maxlen, q_maxlen = build_dictionary(train_dataset, saved_params)
+    dictionary, _, c_maxlen, q_maxlen = build_dict(train_dataset, saved_params)
+    if saved_params['embed_pretrained']:
+        pretrained_glove, dictionary = load_glove(dictionary, saved_params)
+    else:
+        pretrained_glove = None
 
     train_dataset = preprocess(train_dataset, dictionary, c_maxlen, q_maxlen)
     dev_dataset = preprocess(dev_dataset, dictionary, c_maxlen, q_maxlen)
@@ -93,10 +97,6 @@ def main(_):
     saved_params['voca_size'] = len(dictionary)
     saved_params['dim_output'] = c_maxlen
     
-    if saved_params['embed_pretrained']:
-        pretrained_glove = load_glove(dictionary, saved_params)
-    else:
-        pretrained_glove = None
 
     # Copy params, ready for validation
     # TODO: Validation parameters
