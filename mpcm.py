@@ -175,13 +175,23 @@ class MPCM(Basic):
             return outputs
 
     def prediction_layer(self, inputs):
-        start_logits = linear(inputs=inputs,
-            output_dim=1, 
+        start_hidden = linear(inputs=inputs,
+            output_dim=self.dim_hidden,
+            activation=tf.nn.relu,
+            dropout_rate=self.hidden_dropout,
+            scope='Hidden_s')
+        start_logits = linear(inputs=start_hidden,
+            output_dim=1,
             scope='Output_s')
         start_logits = tf.reshape(start_logits, [-1, self.dim_output])
 
-        end_logits = linear(inputs=inputs,
-            output_dim=1, 
+        end_hidden = linear(inputs=inputs,
+            output_dim=self.dim_hidden,
+            activation=tf.nn.relu,
+            dropout_rate=self.hidden_dropout,
+            scope='Hidden_e')
+        end_logits = linear(inputs=end_hidden,
+            output_dim=1,
             scope='Output_e')
         end_logits = tf.reshape(end_logits, [-1, self.dim_output])
         
@@ -233,6 +243,7 @@ class MPCM(Basic):
             aggregates = self.aggregation_layer(matchings, self.context_maxlen, self.context_len)
             print('# Aggregation_layer', aggregates)
                 
+        with tf.device('/gpu:0'):
             start_logits, end_logits = self.prediction_layer(aggregates)
             print('# Prediction_layer', start_logits, end_logits)
 

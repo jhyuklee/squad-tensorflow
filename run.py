@@ -190,9 +190,9 @@ def test(model, dataset, params):
                         model.question_len: batch_question_len,
                         model.answer_start: batch_answer_start,
                         model.answer_end: batch_answer_end,
-                        model.rnn_dropout: params['rnn_dropout'],
-                        model.hidden_dropout: params['hidden_dropout'],
-                        model.embed_dropout: params['embed_dropout']}
+                        model.rnn_dropout: 1.0,
+                        model.hidden_dropout: 1.0,
+                        model.embed_dropout: 1.0}
                 
                 # Print intermediate result
                 loss, start_logits, end_logits = sess.run(
