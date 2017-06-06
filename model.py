@@ -185,14 +185,13 @@ class Basic(object):
     def reset_graph():
         tf.reset_default_graph()
 
-    def save(self, checkpoint_dir, step):
-        file_name = "%s.model" % self.model
+    def save(self, checkpoint_dir, epoch):
+        file_name = "%s_%d.model" % (self.model, epoch)
         self.saver.save(self.session, os.path.join(checkpoint_dir, file_name))
         print("Model saved", file_name)
 
     def load(self, checkpoint_dir):
         file_name = "%s.model" % self.model
-        file_name += "-10800"
         self.saver.restore(self.session, os.path.join(checkpoint_dir, file_name))
         print("Model loaded", file_name)
 
