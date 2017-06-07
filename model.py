@@ -57,8 +57,6 @@ class Basic(object):
         self.optimizer = tf.train.AdamOptimizer(self.learning_rate)
 
         # embedding setting
-        self.embed_writer = tf.summary.FileWriter(self.checkpoint_dir) # self.session.graph
-        self.embed_config = projector.ProjectorConfig()
         if params['embed_pretrained']:
            embeddings = self.initialize_embedding(initializer)
 
@@ -144,15 +142,19 @@ class Basic(object):
         tf.summary.scalar('Loss', self.loss)
         
         print('# Calculating derivatives.. \n')
-        self.grads = []
         self.variables = tf.trainable_variables()
+        """
+        self.grads = []
         for idx, grad in enumerate(tf.gradients(self.loss, self.variables)):
             if grad is not None:
-                self.grads.append(tf.clip_by_value(grad, self.min_grad, self.max_grad))
+                self.grads.append(tf.clip_by_value(grad, self.max_grad, self.min_grad))
             else:
                 self.grads.append(grad)
-        self.optimize = self.optimizer.apply_gradients(zip(self.grads, self.variables), 
-                global_step=self.global_step)
+        """
+        self.grads, _ = tf.clip_by_global_norm(tf.gradients(self.loss, self.variables),
+                self.max_grad)
+        self.optimize = self.optimizer.apply_gradients(
+                zip(self.grads, self.variables), global_step=self.global_step)
     
     def initialize_embedding(self, word_embed):
         with tf.variable_scope("Word"):
@@ -177,6 +179,7 @@ class Basic(object):
         model_vars = [v for v in tf.global_variables()]
         self.saver = tf.train.Saver(model_vars)
         self.merged_summary = tf.summary.merge_all()
+        self.graph_writer = tf.summary.FileWriter(self.checkpoint_dir, self.session.graph)
 
     @staticmethod
     def reset_graph():

@@ -88,7 +88,7 @@ def train(model, dataset, epoch, params):
                         g_norm = np.linalg.norm(np_gs)
                         norm_size = np_gs.shape
                         g_norm_group.append(g_norm)
-                        # dprint('g:' + str(g_norm) + str(norm_size), params['debug'], end=' ')
+                        dprint('g:' + str(g_norm) + str(norm_size), params['debug'], end=' ')
                     dprint('', params['debug'])
                     g_norm_list.append(g_norm_group)
 

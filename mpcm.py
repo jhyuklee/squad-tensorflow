@@ -11,10 +11,10 @@ class MPCM(Basic):
         super(MPCM, self).__init__(params, initializer)
 
     def filter_layer(self, context, question):
-        c_norm = tf.norm(context, axis=2, keep_dims=True)
-        q_norm = tf.norm(question, axis=2, keep_dims=True)
-        n_context = context / (c_norm + tf.constant(1e-10))
-        n_question = question / (q_norm + tf.constant(1e-10))
+        c_norm = tf.sqrt(tf.maximum(tf.reduce_sum(tf.square(context), axis=-1), 1e-6))
+        q_norm = tf.sqrt(tf.maximum(tf.reduce_sum(tf.square(question), axis=-1), 1e-6))
+        n_context = context / tf.expand_dims(c_norm, -1)
+        n_question = question / tf.expand_dims(q_norm, -1)
         tr_question = tf.transpose(n_question, [0, 2, 1])
         similarity = tf.matmul(n_context, tr_question)
         max_similarity = tf.reduce_max(similarity, 2, keep_dims=True)
@@ -29,66 +29,27 @@ class MPCM(Basic):
             return outputs
     
     def matching_layer(self, context, question):
-
-        def test_function(w, c, q):
-            # [B, C, 2H] => [C, B, 2H]
-            c_tr = tf.transpose(c, [1, 0, 2])
-
-            # [B, Q, 2H] => [Q, B, 2H] => [Q, B, 3L, 2H] => [Q, B, 6L, H]
-            q_tr = tf.transpose(q, [1, 0, 2])
-            q_tiled = tf.tile(tf.expand_dims(q_tr, 2), [1, 1, self.dim_perspective * 3, 1])
-            q_fb = tf.reshape(q_tiled,
-                    [self.question_maxlen, -1, self.dim_perspective * 6, self.dim_rnn_cell])
-            q_w = tf.multiply(q_fb, w)
-            
-            def do_matching(a, b, l):
-                # [B, 2H] => [B, 3L, 2H] => [B, 6L, H]
-                a_tiled = tf.tile(tf.expand_dims(a, 1), [1, self.dim_perspective * 3, 1])
-                a_fb = tf.reshape(a_tiled, [-1, self.dim_perspective * 6, self.dim_rnn_cell])
-                a_w = tf.multiply(a_fb, l)
-
-                # Normalize
-                a_norm = tf.norm(a_w, axis=2, keep_dims=True)
-                b_norm = tf.norm(b, axis=3, keep_dims=True)
-                a_w = a_w / (a_norm + tf.constant(1e-10))
-                b = b / (b_norm + tf.constant(1e-10))
-                
-                # [Q, B, 6L]
-                return tf.reduce_sum(tf.multiply(a_w, b), 3)
-
-            # [C, B, 2H] X [Q, B, 6L, H] => [C, Q, B, 6L]
-            q_shape = tf.shape(q_tr)
-            init = tf.zeros([q_shape[0], q_shape[1], self.dim_perspective * 6])
-            w_result = tf.scan(lambda a, x: do_matching(x, q_w, w), c_tr, init)
-            print('w_result', w_result)
-            
-            # [C, Q, B, 6L] => [B, C, Q, 6L]
-            w_tr = tf.transpose(w_result, [2, 0, 1, 3])
-            print('\tmatching function', w_tr)
-            return w_tr
         
         def matching_function(w, c, q):
             with tf.device('/gpu:0'):
-                # [B, C, 2H] => [B, C, 3L, 2H] => [B, C, 6L, H] => [C, B, 6L, H]
-                c_tiled = tf.tile(tf.expand_dims(c, 2), [1, 1, self.dim_perspective * 3, 1])
-                c_fb = tf.reshape(c_tiled, 
-                        [-1, self.context_maxlen, self.dim_perspective * 6, self.dim_rnn_cell])
-                c_w = tf.multiply(c_fb, w)
-                c_t = tf.transpose(c_w, [1, 0, 2, 3])
+                # [B, C, 2H] => [B, C, 1, 2H] => [B, C, 3L, 2H] => [C, B, 6L, H]
+                c_e = tf.expand_dims(c, 2)
+                c_w = tf.multiply(c_e, w)
+                c_r = tf.reshape(c_w, 
+                        [-1, self.context_maxlen, 6 * self.dim_perspective, self.dim_rnn_cell])
+                c_t = tf.transpose(c_r, [1, 0, 2, 3])
 
-                # [B, Q, 2H] => [B, Q, 3L, 2H] => [B, Q, 6L, H] => [Q, B, 6L, H]
-                q_tiled = tf.tile(tf.expand_dims(q, 2), [1, 1, self.dim_perspective * 3, 1])
-                q_fb = tf.reshape(q_tiled,
-                        [-1, self.question_maxlen, self.dim_perspective * 6, self.dim_rnn_cell])
-                q_w = tf.multiply(q_fb, w)
-                q_t = tf.transpose(q_w, [1, 0, 2, 3])
+                # [B, Q, 2H] => [B, Q, 1, 2H] => [B, Q, 3L, 2H] => [Q, B, 6L, H]
+                q_e = tf.expand_dims(q, 2)
+                q_w = tf.multiply(q_e, w)
+                q_r = tf.reshape(q_w, 
+                        [-1, self.question_maxlen, 6 * self.dim_perspective, self.dim_rnn_cell])
+                q_t = tf.transpose(q_r, [1, 0, 2, 3])
             
             def reduce_norm_mul(a, b):
-                a_norm = tf.norm(a, axis=2, keep_dims=True)
-                b_norm = tf.norm(b, axis=3, keep_dims=True)
-                a = a / (a_norm + tf.constant(1e-10))
-                b = b / (b_norm + tf.constant(1e-10))
-                result = tf.reduce_sum(tf.multiply(a, b), 3)
+                a_norm = tf.sqrt(tf.maximum(tf.reduce_sum(tf.square(a), axis=-1), 1e-6))
+                b_norm = tf.sqrt(tf.maximum(tf.reduce_sum(tf.square(b), axis=-1), 1e-6))
+                result = tf.reduce_sum(tf.multiply(a, b), -1) / a_norm / b_norm
                 return result
 
             with tf.device('/gpu:1'):
@@ -144,7 +105,7 @@ class MPCM(Basic):
             print('\tmean matching', result)
             return result
        
-        w_matching = tf.get_variable('w_matching', [self.dim_perspective * 6, self.dim_rnn_cell],
+        w_matching = tf.get_variable('w_matching', [self.dim_perspective * 3, self.dim_rnn_cell * 2],
                 initializer=tf.random_normal_initializer(), dtype=tf.float32)
         matching_result = matching_function(w_matching, context, question)
         
@@ -228,8 +189,8 @@ class MPCM(Basic):
             # For skipping rep layer
             self.dim_rnn_cell = int(self.dim_embed_word / 2)
             aggregates = self.matching_layer(context_filtered, question_embed)
-            """
 
+            """
             context_rep = self.representation_layer(context_filtered, self.context_len,
                     self.context_maxlen, scope='Context')
             question_rep = self.representation_layer(question_embed, self.question_len,
