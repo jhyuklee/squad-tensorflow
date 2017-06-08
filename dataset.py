@@ -60,17 +60,20 @@ def load_glove(dictionary, params):
 
 
 def tokenize(words):
-    exclude = set(string.punctuation)
-    words = ''.join(ch for ch in words if ch not in exclude)
-    while '  ' in words:
-        words = re.sub(r'\s\s', ' ', words)
-    word_list = words.lower().split(' ')
+    def remove_articles(text):
+        return re.sub(r'\b(a|an|the)\b', ' ', text)
 
-    while '' in word_list:
-        del word_list[word_list.index('')]
-    assert '' not in word_list
+    def white_space_fix(text):
+        return ' '.join(text.split())
 
-    return word_list
+    def remove_punc(text):
+        exclude = set(string.punctuation)
+        return ''.join(ch for ch in text if ch not in exclude)
+
+    def lower(text):
+        return text.lower()
+    
+    return white_space_fix(remove_articles(remove_punc(lower(words)))).split(' ')
 
 
 def word2idx(words, dictionary, max_length=None):
