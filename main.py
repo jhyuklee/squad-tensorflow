@@ -13,10 +13,7 @@ from run import train, test
 flags = tf.app.flags
 flags.DEFINE_integer('train_epoch', 100, 'Training epoch')
 flags.DEFINE_integer('test_epoch', 3, 'Test for every n training epoch')
-flags.DEFINE_integer("min_voca", 0, "Minimum frequency of word")
-flags.DEFINE_integer("min_grad", -10, "Minimum gradient to clip")
-flags.DEFINE_integer("max_grad", 10, "Maximum gradient to clip")
-flags.DEFINE_integer("batch_size", 64, "Size of batch (8)")
+flags.DEFINE_integer("batch_size", 32, "Size of batch (32)")
 flags.DEFINE_integer("dim_perspective", 20, "Maximum number of perspective (20)")
 flags.DEFINE_integer("dim_embed_word", 300, "Dimension of word embedding (300)")
 flags.DEFINE_integer("dim_rnn_cell", 100, "Dimension of RNN cell (100)")
@@ -25,14 +22,14 @@ flags.DEFINE_integer("rnn_layer", 1, "Layer number of RNN ")
 flags.DEFINE_float("rnn_dropout", 0.5, "Dropout of RNN cell")
 flags.DEFINE_float("hidden_dropout", 0.5, "Dropout rate of hidden layer")
 flags.DEFINE_float("embed_dropout", 0.8, "Dropout rate of embedding layer")
-flags.DEFINE_float("learning_rate", 1e-4, "Learning rate of the optimzier")
+flags.DEFINE_float("learning_rate", 1e-3, "Learning rate of the optimzier")
 flags.DEFINE_float("decay_rate", 0.99, "Decay rate of learning rate")
 flags.DEFINE_float("decay_step", 100, "Decay step of learning rate")
-flags.DEFINE_boolean("embed", True, "True to embed words")
-flags.DEFINE_boolean("embed_pretrained", True, "True to use pretrained embed words")
+flags.DEFINE_float("max_grad_norm", 10.0, "Maximum gradient to clip")
 flags.DEFINE_boolean("embed_trainable", False, "True to optimize embedded words")
 flags.DEFINE_boolean("test", False, "True to max iteration 5")
 flags.DEFINE_boolean("debug", False, "True to show debug message")
+flags.DEFINE_boolean("small", False, "True to make small length data")
 
 flags.DEFINE_string("model", "m", "b: basic, m: mpcm")
 flags.DEFINE_string('train_path', './data/train-v1.1.json', 'Training dataset path')
@@ -52,7 +49,7 @@ def run(model, params, train_dataset, dev_dataset):
     for epoch_idx in range(train_epoch):
         print("\nEpoch %d" % (epoch_idx + 1))
         train(model, train_dataset, epoch_idx + 1, params)
-        model.save(params['checkpoint_dir'], epoch_idx+1)
+        # model.save(params['checkpoint_dir'], epoch_idx+1)
         if (epoch_idx + 1) % test_epoch == 0:
             test(model, dev_dataset, params)
     
@@ -85,10 +82,8 @@ def main(_):
     """
     # Preprocess dataset
     dictionary, _, c_maxlen, q_maxlen = build_dict(train_dataset, saved_params)
-    if saved_params['embed_pretrained']:
-        pretrained_glove, dictionary = load_glove(dictionary, saved_params)
-    else:
-        pretrained_glove = None
+    pretrained_glove, dictionary = load_glove(dictionary, saved_params)
+    if saved_params['small']: c_maxlen = 30
 
     train_dataset = preprocess(train_dataset, dictionary, c_maxlen, q_maxlen)
     dev_dataset = preprocess(dev_dataset, dictionary, c_maxlen, q_maxlen)
@@ -96,7 +91,6 @@ def main(_):
     saved_params['question_maxlen'] = q_maxlen
     saved_params['voca_size'] = len(dictionary)
     saved_params['dim_output'] = c_maxlen
-    
 
     # Copy params, ready for validation
     # TODO: Validation parameters
@@ -104,9 +98,9 @@ def main(_):
 
     # Make model and run experiment
     if saved_params['model'] == 'm':
-        my_model = MPCM(params, initializer=pretrained_glove)
+        my_model = MPCM(params, initializer=[pretrained_glove, dictionary])
     elif saved_params['model'] == 'b':
-        my_model = Basic(params, initializer=pretrained_glove)
+        my_model = Basic(params, initializer=[pretrained_glove, dictionary])
     else:
         assert False, "Check your version %s" % saved_params['model']
     run(my_model, params, train_dataset, dev_dataset) 

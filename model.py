@@ -1,5 +1,6 @@
 import tensorflow as tf
 import os
+import datetime
 
 from ops import *
 
@@ -22,8 +23,7 @@ class Basic(object):
         self.learning_rate = params['learning_rate']
         self.decay_rate = params['decay_rate']
         self.decay_step = params['decay_step']
-        self.min_grad = params['min_grad']
-        self.max_grad = params['max_grad']
+        self.max_grad_norm = params['max_grad_norm']
 
         # rnn parameters
         self.context_maxlen = params['context_maxlen']
@@ -36,7 +36,7 @@ class Basic(object):
         self.dim_output = params['dim_output']
         self.embed_trainable = params['embed_trainable']
         self.checkpoint_dir = params['checkpoint_dir']
-        self.initializer = initializer
+        self.initializer, self.dictionary = initializer
 
         # input data placeholders
         self.context = tf.placeholder(tf.int32, [None, self.context_maxlen])
@@ -51,28 +51,30 @@ class Basic(object):
 
         # model settings
         self.global_step = tf.Variable(0, name="step", trainable=False)
-        # self.learning_rate = tf.train.exponential_decay(
-        #         self.learning_rate, self.global_step,
-        #         self.decay_step, self.decay_rate, staircase=True)
+        """
+        self.learning_rate = tf.train.exponential_decay(
+                 self.learning_rate, self.global_step,
+                 self.decay_step, self.decay_rate, staircase=True)
+        """
         self.optimizer = tf.train.AdamOptimizer(self.learning_rate)
-
-        # embedding setting
-        if params['embed_pretrained']:
-           embeddings = self.initialize_embedding(initializer)
+        self.initialize_embedding(self.initializer)
 
         # build model
+        start_time = datetime.datetime.now()
         self.start_logits, self.end_logits = self.build_model()
         self.optimize_loss(self.start_logits, self.end_logits)
         self.save_settings()
         self.session.run(tf.global_variables_initializer())
+        elapsed_time = datetime.datetime.now() - start_time
+        print('Model Building Done', elapsed_time)
        
         # debug initializer
-        if params['embed_pretrained']:
-            self.session.run(embeddings)
         with tf.variable_scope('Word', reuse=True):
-            variable_here = tf.get_variable("embed", [self.voca_size, self.dim_embed_word],
+            vv = tf.get_variable("embed", [self.voca_size, self.dim_embed_word],
                     dtype=tf.float32)
-            print(variable_here.eval(session=self.session), '\n')
+            print('apple:', self.dictionary['apple'])
+            print(vv.eval(session=self.session)[self.dictionary['apple']][:5])
+            print(vv.eval(session=self.session), '\n')
         
 
     def encoder(self, inputs, length, max_length, dim_input, dim_embed, 
@@ -143,16 +145,8 @@ class Basic(object):
         
         print('# Calculating derivatives.. \n')
         self.variables = tf.trainable_variables()
-        """
-        self.grads = []
-        for idx, grad in enumerate(tf.gradients(self.loss, self.variables)):
-            if grad is not None:
-                self.grads.append(tf.clip_by_value(grad, self.max_grad, self.min_grad))
-            else:
-                self.grads.append(grad)
-        """
         self.grads, _ = tf.clip_by_global_norm(tf.gradients(self.loss, self.variables),
-                self.max_grad)
+                self.max_grad_norm)
         self.optimize = self.optimizer.apply_gradients(
                 zip(self.grads, self.variables), global_step=self.global_step)
     
@@ -162,7 +156,6 @@ class Basic(object):
                                               initializer=tf.constant(word_embed),
                                               trainable=self.embed_trainable,
                                               dtype=tf.float32)
-            return word_embeddings
 
     def save_settings(self):
         print('model variables', [var.name for var in tf.trainable_variables()])
@@ -179,7 +172,7 @@ class Basic(object):
         model_vars = [v for v in tf.global_variables()]
         self.saver = tf.train.Saver(model_vars)
         self.merged_summary = tf.summary.merge_all()
-        self.graph_writer = tf.summary.FileWriter(self.checkpoint_dir, self.session.graph)
+        # self.graph_writer = tf.summary.FileWriter(self.checkpoint_dir, self.session.graph)
 
     @staticmethod
     def reset_graph():

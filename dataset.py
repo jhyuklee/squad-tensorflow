@@ -6,6 +6,7 @@ import gensim
 import datetime
 import string
 import operator
+import collections
 import numpy as np
 
 
@@ -52,6 +53,7 @@ def load_glove(dictionary, params):
         else:
             unk_cnt += 1
 
+    print('apple:', new_dict['apple'], glove['apple'][:5])
     print('Pretrained vectors', np.asarray(pretrained_vectors).shape, 'unknown', unk_cnt)
     print('Dictionary Change', len(dictionary), 'to', len(new_dict))
     return np.asarray(pretrained_vectors).astype(np.float32), new_dict
@@ -62,7 +64,13 @@ def tokenize(words):
     words = ''.join(ch for ch in words if ch not in exclude)
     while '  ' in words:
         words = re.sub(r'\s\s', ' ', words)
-    return words.lower().split(' ')
+    word_list = words.lower().split(' ')
+
+    while '' in word_list:
+        del word_list[word_list.index('')]
+    assert '' not in word_list
+
+    return word_list
 
 
 def word2idx(words, dictionary, max_length=None):
@@ -98,10 +106,6 @@ def build_dict(dataset, params):
     context_maxlen = 0
     question_maxlen = 0
     answer_maxlen = 0
-    dictionary['UNK'] = 0
-    dictionary['PAD'] = 1
-    reverse_dictionary[0] = 'UNK'
-    reverse_dictionary[1] = 'PAD'
     
     for d_idx, document in enumerate(dataset):
         for p_idx, paragraph in enumerate(document['paragraphs']):
@@ -127,13 +131,11 @@ def build_dict(dataset, params):
     
     print('Top 20 frequent words among', len(counter))
     print([(k, counter[k]) for k in sorted(counter, key=counter.get, reverse=True)[:20]])
-    for key, value in counter.items():
-        if value > params['min_voca']:
-            dictionary[key] = len(dictionary)
-            reverse_dictionary[dictionary[key]] = key
+    for key, value in sorted(counter.items()):
+        dictionary[key] = len(dictionary)
+        reverse_dictionary[dictionary[key]] = key
     print('Dictionary size', len(dictionary))
     print([(k, dictionary[k]) for k in sorted(dictionary, key=dictionary.get)[:20]])
-    # context_maxlen = 300 # For testing
     print('Maxlen of C:%d, Q:%d, A:%d' % (context_maxlen, question_maxlen, answer_maxlen))
 
     return dictionary, reverse_dictionary, context_maxlen, question_maxlen
@@ -148,10 +150,8 @@ def preprocess(dataset, dictionary, c_maxlen, q_maxlen):
             context = paragraph['context']
             cqa_item = {}
             cqa_item['c_raw'] = tokenize(context)
-            # if len(cqa_item['c_raw']) > c_maxlen:
-            #     continue
-
             cqa_item['c'], cqa_item['c_len'] = word2idx(context, dictionary, c_maxlen)
+            if len(cqa_item['c_raw']) > c_maxlen: continue
             if d_idx == 0 and p_idx == 0:
                 # print(context)
                 pass
