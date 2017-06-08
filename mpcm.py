@@ -46,13 +46,23 @@ class MPCM(Basic):
                     q_w = tf.multiply(q_e, w)
                     q_t = tf.transpose(q_w, [1, 0, 2, 3])
                     qf, qb = tf.split(q_t, num_or_size_splits=2, axis=3)
+
+                    # Normalize context and question
+                    cf_norm = tf.sqrt(tf.maximum(
+                        tf.reduce_sum(tf.square(cf), axis=-1, keep_dims=True), 1e-6))
+                    cb_norm = tf.sqrt(tf.maximum(
+                        tf.reduce_sum(tf.square(cb), axis=-1, keep_dims=True), 1e-6))
+                    cf /= cf_norm
+                    cb /= cb_norm
+                    qf_norm = tf.sqrt(tf.maximum(
+                        tf.reduce_sum(tf.square(qf), axis=-1, keep_dims=True), 1e-6))
+                    qb_norm = tf.sqrt(tf.maximum(
+                        tf.reduce_sum(tf.square(qb), axis=-1, keep_dims=True), 1e-6))
+                    qf /= qf_norm
+                    qb /= qb_norm
               
                 def cosine_dist(a, b):
-                    a_norm = tf.sqrt(tf.maximum(
-                        tf.reduce_sum(tf.square(a), axis=-1), 1e-6))
-                    b_norm = tf.sqrt(tf.maximum(
-                        tf.reduce_sum(tf.square(b), axis=-1), 1e-6))
-                    result = tf.reduce_sum(tf.multiply(a, b), -1) / a_norm / b_norm
+                    result = tf.reduce_sum(tf.multiply(a, b), -1)
                     return result
 
                 with tf.device('/gpu:1'):
