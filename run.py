@@ -78,10 +78,11 @@ def train(model, dataset, epoch, params):
                     for c, s_idx, e_idx in zip(context_raws, start_idx, end_idx):
                         dprint('si/ei=(%d/%d)'% (s_idx, e_idx), params['debug'], end= '\t')
                         predictions.append(' '.join([w for w in c[s_idx: e_idx+1]]))
-                   
-                    # dprint('shape of grad/sl/el = %s/%s/%s' % (np.asarray(grads).shape, 
-                    #             np.asarray(start_logits).shape, 
-                    #             np.asarray(end_logits).shape), params['debug'])
+                  
+                    """
+                    dprint('shape of grad/sl/el = %s/%s/%s' % (np.asarray(grads).shape, 
+                                 np.asarray(start_logits).shape, 
+                                 np.asarray(end_logits).shape), params['debug'])
                     g_norm_group = []
                     for gs in grads:
                         np_gs = np.asarray(gs)
@@ -91,6 +92,7 @@ def train(model, dataset, epoch, params):
                         dprint('g:' + str(g_norm) + str(norm_size), params['debug'], end=' ')
                     dprint('', params['debug'])
                     g_norm_list.append(g_norm_group)
+                    """
 
                     for sl, el in zip(start_logits, end_logits):
                         # dprint('s:' + str(sl[:10]), params['debug'])

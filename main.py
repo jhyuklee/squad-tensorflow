@@ -3,6 +3,7 @@ import tensorflow as tf
 import numpy as np
 import pprint
 import argparse
+import datetime
 
 from model import Basic
 from mpcm import MPCM
@@ -15,7 +16,7 @@ flags.DEFINE_integer('train_epoch', 100, 'Training epoch')
 flags.DEFINE_integer('test_epoch', 3, 'Test for every n training epoch')
 flags.DEFINE_integer("batch_size", 64, "Size of batch (32)")
 flags.DEFINE_integer("dim_perspective", 20, "Maximum number of perspective (20)")
-flags.DEFINE_integer("dim_embed_word", 300, "Dimension of word embedding (300)")
+flags.DEFINE_integer("dim_embed_word", 50, "Dimension of word embedding (300)")
 flags.DEFINE_integer("dim_rnn_cell", 100, "Dimension of RNN cell (100)")
 flags.DEFINE_integer("dim_hidden", 100, "Dimension of hidden layer")
 flags.DEFINE_integer("rnn_layer", 1, "Layer number of RNN ")
@@ -25,7 +26,7 @@ flags.DEFINE_float("embed_dropout", 0.8, "Dropout rate of embedding layer")
 flags.DEFINE_float("learning_rate", 1e-3, "Learning rate of the optimzier")
 flags.DEFINE_float("decay_rate", 0.99, "Decay rate of learning rate")
 flags.DEFINE_float("decay_step", 100, "Decay step of learning rate")
-flags.DEFINE_float("max_grad_norm", 10.0, "Maximum gradient to clip")
+flags.DEFINE_float("max_grad_norm", 5.0, "Maximum gradient to clip")
 flags.DEFINE_boolean("embed_trainable", False, "True to optimize embedded words")
 flags.DEFINE_boolean("test", False, "True to max iteration 5")
 flags.DEFINE_boolean("debug", False, "True to show debug message")
@@ -47,8 +48,11 @@ def run(model, params, train_dataset, dev_dataset):
     test_epoch = params['test_epoch']
 
     for epoch_idx in range(train_epoch):
+        start_time = datetime.datetime.now()
         print("\nEpoch %d" % (epoch_idx + 1))
         train(model, train_dataset, epoch_idx + 1, params)
+        elapsed_time = datetime.datetime.now() - start_time
+        print('Traning Done', elapsed_time)
         # model.save(params['checkpoint_dir'], epoch_idx+1)
         if (epoch_idx + 1) % test_epoch == 0:
             test(model, dev_dataset, params)

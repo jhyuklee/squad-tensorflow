@@ -91,6 +91,7 @@ class MPCM(Basic):
                         [-1, self.context_maxlen, self.dim_perspective])
                 
                 result = tf.concat([gathered_fw, gathered_bw], axis=2)
+                # result = tf.Print(result, [fw_indices, bw_indices], 'indices', summarize=10)
                 print('\tfull matching', result)
                 return result
 
@@ -136,6 +137,7 @@ class MPCM(Basic):
             fw_cell = lstm_cell(self.dim_rnn_cell, self.rnn_layer, self.rnn_dropout)
             bw_cell = lstm_cell(self.dim_rnn_cell, self.rnn_layer, self.rnn_dropout)
             r_inputs = rnn_reshape(inputs, self.dim_perspective * 6, max_length)
+            # r_inputs = rnn_reshape(inputs, self.dim_rnn_cell * 2, max_length)
             outputs = bi_rnn_model(r_inputs, length, fw_cell, bw_cell)
             print('\tinputs', inputs)
             print('\toutputs', outputs)
@@ -208,6 +210,7 @@ class MPCM(Basic):
 
         with tf.device('/gpu:0'):
             aggregates = self.aggregation_layer(matchings, self.context_maxlen, self.context_len)
+            # aggregates = self.aggregation_layer(context_rep, self.context_maxlen, self.context_len)
             print('# Aggregation_layer', aggregates)        
 
         with tf.device('/gpu:0'):
