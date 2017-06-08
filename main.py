@@ -13,7 +13,7 @@ from run import train, test
 flags = tf.app.flags
 flags.DEFINE_integer('train_epoch', 100, 'Training epoch')
 flags.DEFINE_integer('test_epoch', 3, 'Test for every n training epoch')
-flags.DEFINE_integer("batch_size", 32, "Size of batch (32)")
+flags.DEFINE_integer("batch_size", 64, "Size of batch (32)")
 flags.DEFINE_integer("dim_perspective", 20, "Maximum number of perspective (20)")
 flags.DEFINE_integer("dim_embed_word", 300, "Dimension of word embedding (300)")
 flags.DEFINE_integer("dim_rnn_cell", 100, "Dimension of RNN cell (100)")
@@ -83,7 +83,7 @@ def main(_):
     # Preprocess dataset
     dictionary, _, c_maxlen, q_maxlen = build_dict(train_dataset, saved_params)
     pretrained_glove, dictionary = load_glove(dictionary, saved_params)
-    if saved_params['small']: c_maxlen = 30
+    if saved_params['small']: c_maxlen = 300
 
     train_dataset = preprocess(train_dataset, dictionary, c_maxlen, q_maxlen)
     dev_dataset = preprocess(dev_dataset, dictionary, c_maxlen, q_maxlen)
