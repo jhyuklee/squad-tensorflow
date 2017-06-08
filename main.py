@@ -87,7 +87,7 @@ def main(_):
     # Preprocess dataset
     dictionary, _, c_maxlen, q_maxlen = build_dict(train_dataset, saved_params)
     pretrained_glove, dictionary = load_glove(dictionary, saved_params)
-    if saved_params['small']: c_maxlen = 30
+    if saved_params['small']: c_maxlen = 300
 
     train_dataset = preprocess(train_dataset, dictionary, c_maxlen, q_maxlen)
     dev_dataset = preprocess(dev_dataset, dictionary, c_maxlen, q_maxlen)
