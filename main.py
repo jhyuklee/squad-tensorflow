@@ -22,7 +22,7 @@ flags.DEFINE_integer("dim_hidden", 100, "Dimension of hidden layer")
 flags.DEFINE_integer("rnn_layer", 1, "Layer number of RNN ")
 flags.DEFINE_float("rnn_dropout", 0.5, "Dropout of RNN cell")
 flags.DEFINE_float("hidden_dropout", 0.5, "Dropout rate of hidden layer")
-flags.DEFINE_float("embed_dropout", 1.0, "Dropout rate of embedding layer")
+flags.DEFINE_float("embed_dropout", 0.8, "Dropout rate of embedding layer")
 flags.DEFINE_float("learning_rate", 1e-3, "Learning rate of the optimzier")
 flags.DEFINE_float("decay_rate", 0.99, "Decay rate of learning rate")
 flags.DEFINE_float("decay_step", 100, "Decay step of learning rate")
@@ -87,7 +87,7 @@ def main(_):
     # Preprocess dataset
     dictionary, _, c_maxlen, q_maxlen = build_dict(train_dataset, saved_params)
     pretrained_glove, dictionary = load_glove(dictionary, saved_params)
-    if saved_params['small']: c_maxlen = 100
+    if saved_params['small']: c_maxlen = 300
 
     train_dataset = preprocess(train_dataset, dictionary, c_maxlen, q_maxlen)
     dev_dataset = preprocess(dev_dataset, dictionary, c_maxlen, q_maxlen)
