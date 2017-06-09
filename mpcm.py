@@ -149,6 +149,20 @@ class MPCM(Basic):
             r_inputs = rnn_reshape(inputs, self.dim_perspective * 6, max_length)
             # r_inputs = rnn_reshape(inputs, self.dim_rnn_cell * 2, max_length)
             outputs = bi_rnn_model(r_inputs, length, fw_cell, bw_cell)
+
+            """
+            fw_outputs, bw_outputs = tf.split(outputs, num_or_size_splits=2, axis=2)
+            batch_size = tf.shape(inputs)[0]
+            fw_indices = tf.concat(axis=1, 
+                    values=[tf.expand_dims(tf.range(0, batch_size), 1), tf.expand_dims(length-1, 1)])
+            bw_indices = tf.concat(axis=1, 
+                    values=[tf.expand_dims(tf.range(0, batch_size), 1),
+                        tf.expand_dims(tf.zeros([batch_size], dtype=tf.int32), 1)])
+            gathered_fw = tf.gather_nd(fw_outputs, fw_indices)
+            gathered_bw = tf.gather_nd(bw_outputs, bw_indices)
+            outputs_cct = tf.concat([gathered_fw, gathered_bw], axis=1)
+            """
+            
             print('\tinputs', inputs)
             print('\toutputs', outputs)
             return outputs
