@@ -53,9 +53,10 @@ def run(model, params, train_dataset, dev_dataset):
         train(model, train_dataset, epoch_idx + 1, params)
         elapsed_time = datetime.datetime.now() - start_time
         print('Traning Done', elapsed_time)
-        # model.save(params['checkpoint_dir'], epoch_idx+1)
+        
         if (epoch_idx + 1) % test_epoch == 0:
             test(model, dev_dataset, params)
+            model.save(params['checkpoint_dir'], epoch_idx+1)
     
     test(model, dev_dataset, params)
     model.reset_graph() 
