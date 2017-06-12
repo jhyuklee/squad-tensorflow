@@ -65,7 +65,7 @@ class MPCM(Basic):
                     result = tf.reduce_sum(tf.multiply(a, b), -1)
                     return result
 
-                with tf.device('/gpu:1'):
+                with tf.device('/gpu:0'):
                     # [C, B, 3L, H] X [Q, B, 3L, H] => [C, Q, B, 3L]
                     q_shape = tf.shape(qf)
                     init = tf.zeros([q_shape[0], q_shape[1], q_shape[2]])
