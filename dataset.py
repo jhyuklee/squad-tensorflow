@@ -30,11 +30,15 @@ def load_glove(dictionary, params):
     glove_path = os.path.expanduser(params['glove_path'])
     with open(glove_path, 'r', encoding='utf-8', errors='ignore') as f:
         while True:
-            line = f.readline()
-            if not line: break
-            word = line.split()[0]
-            embed = [float(l) for l in line.split()[1:]]
-            glove[word] = embed
+            try:
+                line = f.readline()
+                if not line: break
+                word = line.split()[0]
+                embed = [float(l) for l in line.split()[1:]]
+                glove[word] = embed
+            except ValueError as e:
+                print(e)
+                
     elapsed_time = datetime.datetime.now() - start_time
     print('Glove Loading Done', elapsed_time, len(glove))
 

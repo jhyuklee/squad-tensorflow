@@ -169,26 +169,37 @@ class MPCM(Basic):
 
     def prediction_layer(self, inputs):
         with tf.variable_scope('Prediction_Layer') as scope:
+            """
             start_hidden = linear(inputs=inputs,
                 output_dim=self.dim_hidden,
                 activation=tf.nn.relu,
                 dropout_rate=self.hidden_dropout,
                 scope='Hidden_s')
-            start_logits = linear(inputs=start_hidden,
+            """
+            start_logits = linear(inputs=inputs,
                 output_dim=1,
                 scope='Output_s')
             start_logits = tf.reshape(start_logits, [-1, self.dim_output])
-
+            
+            """
             end_hidden = linear(inputs=inputs,
                 output_dim=self.dim_hidden,
                 activation=tf.nn.relu,
                 dropout_rate=self.hidden_dropout,
                 scope='Hidden_e')
-            end_logits = linear(inputs=end_hidden,
+            """
+            end_logits = linear(inputs=inputs,
                 output_dim=1,
                 scope='Output_e')
             end_logits = tf.reshape(end_logits, [-1, self.dim_output])
             
+            # Masking start, end logits
+            batch_size = tf.shape(inputs)[0]
+            mask_tile = tf.tile(tf.expand_dims(tf.range(0, self.dim_output), 0), [batch_size, 1])
+            logits_mask = tf.less(mask_tile, tf.expand_dims(self.context_len, 1))
+            
+            start_logits = tf.multiply(start_logits, tf.cast(logits_mask, tf.float32))
+            end_logits = tf.multiply(end_logits, tf.cast(logits_mask, tf.float32))
             return start_logits, end_logits
 
     def build_model(self):

@@ -14,12 +14,13 @@ from run import train, test
 flags = tf.app.flags
 flags.DEFINE_integer('train_epoch', 100, 'Training epoch')
 flags.DEFINE_integer('test_epoch', 3, 'Test for every n training epoch')
-flags.DEFINE_integer("batch_size", 20, "Size of batch (32)")
+flags.DEFINE_integer("batch_size", 32, "Size of batch (32)")
 flags.DEFINE_integer("dim_perspective", 20, "Maximum number of perspective (20)")
 flags.DEFINE_integer("dim_embed_word", 300, "Dimension of word embedding (300)")
 flags.DEFINE_integer("dim_rnn_cell", 100, "Dimension of RNN cell (100)")
-flags.DEFINE_integer("dim_hidden", 300, "Dimension of hidden layer")
+flags.DEFINE_integer("dim_hidden", 100, "Dimension of hidden layer")
 flags.DEFINE_integer("rnn_layer", 1, "Layer number of RNN ")
+flags.DEFINE_integer("context_maxlen", 0, "Predefined context max length")
 flags.DEFINE_float("rnn_dropout", 0.5, "Dropout of RNN cell")
 flags.DEFINE_float("hidden_dropout", 0.5, "Dropout rate of hidden layer")
 flags.DEFINE_float("embed_dropout", 0.8, "Dropout rate of embedding layer")
@@ -30,14 +31,13 @@ flags.DEFINE_float("max_grad_norm", 5.0, "Maximum gradient to clip")
 flags.DEFINE_boolean("embed_trainable", False, "True to optimize embedded words")
 flags.DEFINE_boolean("test", False, "True to max iteration 5")
 flags.DEFINE_boolean("debug", False, "True to show debug message")
-flags.DEFINE_boolean("small", False, "True to make small length data")
 
 flags.DEFINE_string("model", "m", "b: basic, m: mpcm")
 flags.DEFINE_string('train_path', './data/train-v1.1.json', 'Training dataset path')
 flags.DEFINE_string('dev_path', './data/dev-v1.1.json',  'Development dataset path')
 flags.DEFINE_string('pred_path', './result/dev-v1.1-pred.json', 'Prediction output path')
 flags.DEFINE_string('glove_path', \
-        '~/embed_data/glove.6B.'+ str(tf.app.flags.FLAGS.dim_embed_word) +'d.txt', 'embed path')
+        '~/common/glove/glove.6B.'+ str(tf.app.flags.FLAGS.dim_embed_word) +'d.txt', 'embed path')
 flags.DEFINE_string('checkpoint_dir', './result/ckpt/', 'Checkpoint directory')
 FLAGS = flags.FLAGS
 
@@ -88,7 +88,8 @@ def main(_):
     # Preprocess dataset
     dictionary, _, c_maxlen, q_maxlen = build_dict(train_dataset, saved_params)
     pretrained_glove, dictionary = load_glove(dictionary, saved_params)
-    if saved_params['small']: c_maxlen = 300
+    if saved_params['context_maxlen'] > 0: 
+        c_maxlen = saved_params['context_maxlen']
 
     train_dataset = preprocess(train_dataset, dictionary, c_maxlen, q_maxlen)
     dev_dataset = preprocess(dev_dataset, dictionary, c_maxlen, q_maxlen)

@@ -13,7 +13,7 @@ def train(model, dataset, epoch, params):
     ground_truths = []
     context_raws = []
     g_norm_list = []
-    total_f1 = total_em = total_cnt = 0
+    total_loss = total_f1 = total_em = total_cnt = 0
 
     for dataset_idx, dataset_item in enumerate(dataset):
         context = dataset_item['c']
@@ -130,6 +130,7 @@ def train(model, dataset, epoch, params):
 
                     total_f1 += f1 / len(predictions)
                     total_em += em / len(predictions)
+                    total_loss += loss
                     total_cnt += 1
                     
                 mini_batch = []
@@ -139,7 +140,8 @@ def train(model, dataset, epoch, params):
     # Average result
     total_f1 /= total_cnt
     total_em /= total_cnt
-    print('\nAverage f1: %.3f, em: %.3f' % (total_f1, total_em))
+    total_loss /= total_cnt
+    print('\nAverage loss: %.3f, f1: %.3f, em: %.3f' % (total_loss, total_f1, total_em))
 
     # Write norm information
     if params['debug']:
@@ -159,7 +161,8 @@ def test(model, dataset, params):
     mini_batch = []
     ground_truths = []
     context_raws = []
-    total_f1 = total_em = total_cnt = 0
+    total_loss = total_f1 = total_em = total_cnt = 0
+
 
     for dataset_idx, dataset_item in enumerate(dataset):
         context = dataset_item['c']
@@ -237,6 +240,7 @@ def test(model, dataset, params):
 
                 total_f1 += f1 / len(predictions)
                 total_em += em / len(predictions)
+                total_loss += loss
                 total_cnt += 1
                     
                 mini_batch = []
@@ -246,5 +250,6 @@ def test(model, dataset, params):
     # Average result
     total_f1 /= total_cnt
     total_em /= total_cnt
-    print('\nAverage f1: %.3f, em: %.3f' % (total_f1, total_em)) 
+    total_loss /= total_cnt
+    print('\nAverage loss: %.3f, f1: %.3f, em: %.3f' % (total_loss, total_f1, total_em)) 
 
