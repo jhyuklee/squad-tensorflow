@@ -169,26 +169,22 @@ class MPCM(Basic):
 
     def prediction_layer(self, inputs):
         with tf.variable_scope('Prediction_Layer') as scope:
-            """
             start_hidden = linear(inputs=inputs,
                 output_dim=self.dim_hidden,
                 activation=tf.nn.relu,
                 dropout_rate=self.hidden_dropout,
                 scope='Hidden_s')
-            """
-            start_logits = linear(inputs=inputs,
+            start_logits = linear(inputs=start_hidden,
                 output_dim=1,
                 scope='Output_s')
             start_logits = tf.reshape(start_logits, [-1, self.dim_output])
             
-            """
             end_hidden = linear(inputs=inputs,
                 output_dim=self.dim_hidden,
                 activation=tf.nn.relu,
                 dropout_rate=self.hidden_dropout,
                 scope='Hidden_e')
-            """
-            end_logits = linear(inputs=inputs,
+            end_logits = linear(inputs=end_hidden,
                 output_dim=1,
                 scope='Output_e')
             end_logits = tf.reshape(end_logits, [-1, self.dim_output])
@@ -223,6 +219,7 @@ class MPCM(Basic):
                     reuse=True, scope='Word'), self.embed_dropout)
 
             context_filtered = self.filter_layer(context_embed, question_embed)
+            context_filtered = dropout(context_filtered, self.embed_dropout)
             print('# Filter_layer', context_filtered)
           
             """
@@ -236,16 +233,20 @@ class MPCM(Basic):
             """
             context_rep = self.representation_layer(context_filtered, self.context_len,
                     self.context_maxlen, scope='Context')
+            context_rep = dropout(context_rep, self.embed_dropout)
             question_rep = self.representation_layer(question_embed, self.question_len,
                     self.question_maxlen, scope='Question')
+            question_rep = dropout(question_rep, self.embed_dropout)
             print('# Representation_layer', context_rep, question_rep)
 
         matchings = self.matching_layer(context_rep, question_rep)
+        matchings = dropout(matchings, self.embed_dropout)
         print('# Matching_layer', matchings)
 
         with tf.device('/gpu:0'):
             aggregates = self.aggregation_layer(matchings, self.context_maxlen, self.context_len)
             # aggregates = self.aggregation_layer(context_rep, self.context_maxlen, self.context_len)
+            aggregates = dropout(aggregates, self.embed_dropout)
             print('# Aggregation_layer', aggregates)        
 
         with tf.device('/gpu:0'):
