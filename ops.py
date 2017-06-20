@@ -30,13 +30,16 @@ def rnn_reshape(inputs, input_dim, max_time_step):
         return inputs_tr_reshape_split
 
 
-def rnn_model(inputs, input_len, max_time_step, cell, params):
+def rnn_model(inputs, input_len, max_time_step, cell, params, gather_last=False):
     dim_rnn_cell = params['dim_rnn_cell']
     with tf.variable_scope('RNN') as scope:
         outputs, state = tf.contrib.rnn.static_rnn(cell, inputs, sequence_length=input_len, dtype=tf.float32, scope=scope)
         outputs = tf.transpose(tf.stack(outputs), [1, 0, 2])
-        indices = tf.concat(axis=1, values=[tf.expand_dims(tf.range(0, tf.shape(input_len)[0]), 1), tf.expand_dims(input_len-1, 1)])
-        gathered_outputs = tf.gather_nd(outputs, indices)
+        if gather_last:
+            indices = tf.concat(axis=1, values=[tf.expand_dims(tf.range(0, tf.shape(input_len)[0]), 1), tf.expand_dims(input_len-1, 1)])
+            gathered_outputs = tf.gather_nd(outputs, indices)
+        else:
+            gathered_outputs = outputs
         return gathered_outputs
 
 

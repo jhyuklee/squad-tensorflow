@@ -256,6 +256,7 @@ def test(model, dataset, params):
                 mini_batch = []
                 ground_truths = []
                 context_raws = []
+                question_raws = []
     
     test_writer.close()
 

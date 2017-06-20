@@ -39,7 +39,7 @@ flags.DEFINE_string('train_path', './data/train-v1.1.json', 'Training dataset pa
 flags.DEFINE_string('dev_path', './data/dev-v1.1.json',  'Development dataset path')
 flags.DEFINE_string('pred_path', './result/dev-v1.1-pred.json', 'Prediction output path')
 flags.DEFINE_string('glove_path', \
-        '~/common/glove/glove.6B.'+ str(tf.app.flags.FLAGS.dim_embed_word) +'d.txt', 'embed path')
+        '~/common/glove/glove.840B.'+ str(tf.app.flags.FLAGS.dim_embed_word) +'d.txt', 'embed path')
 flags.DEFINE_string('checkpoint_dir', './result/ckpt/', 'Checkpoint directory')
 FLAGS = flags.FLAGS
 

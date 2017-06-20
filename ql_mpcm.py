@@ -9,46 +9,13 @@ class QL_MPCM(MPCM):
     def __init__(self, params, initializer):
         self.num_paraphrase = params['num_paraphrase']
         super(QL_MPCM, self).__init__(params, initializer)
-    
-    def decoder(self, inputs, state, feed_prev=False, reuse=None):
-        """
-        Args:
-            inputs: decoder inputs with size [batch_size, time_steps, input_dim]
-            state: hidden state of encoder with size [batch_size, cell_dim]
-
-        Returns:
-            decoded: decoded outputs with size [batch_size, time_steps, input_dim]
-        """
-
-        with tf.variable_scope('decoder', reuse=reuse):
-            # make dummy linear for loop function
-            dummy = linear(inputs=tf.constant(1, tf.float32, [100, self.cell_dim]),
-                    output_dim=self.input_dim, scope='rnn_decoder/loop_function/Out', reuse=reuse)
-
-            if feed_prev:
-                def loop_function(prev, i):
-                    next = tf.argmax(linear(inputs=prev,
-                        output_dim=self.input_dim,
-                        scope='Out', reuse=True), 1)
-                    return tf.one_hot(next, self.input_dim)
-            else:
-                loop_function = None
-
-            cell = lstm_cell(self.cell_dim, self.cell_layer_num, self.cell_keep_prob)
-            inputs = tf.one_hot(inputs, self.input_dim)
-            inputs_t = tf.unstack(tf.transpose(inputs, [1, 0, 2]), self.max_time_step)
-            outputs, states = tf.contrib.legacy_seq2seq.rnn_decoder(inputs_t, state, cell, loop_function)
-            outputs_t = tf.transpose(tf.stack(outputs), [1, 0, 2])
-            outputs_tr = tf.reshape(outputs_t, [-1, self.cell_dim])
-            decoded = linear(inputs=outputs_tr,
-                    output_dim=self.input_dim, scope='rnn_decoder/loop_function/Out', reuse=True)
-            return decoded
 
     def paraphrase_layer(self, question, length, max_length, reuse=None):
         with tf.variable_scope('Paraphrase_Layer', reuse=reuse) as scope:
             cell = lstm_cell(self.dim_rnn_cell, self.rnn_layer, self.rnn_dropout)
-            r_inputs = rnn_reshape(question, self.dim_rnn_cell, max_length)
+            r_inputs = rnn_reshape(question, self.dim_rnn_cell * 2, max_length)
             outputs = rnn_model(r_inputs, length, max_length, cell, self.params)
+            # TODO: argmax not differentiable!
             pp_question = tf.argmax(
                     tf.reshape(
                     linear(inputs=outputs,
@@ -68,6 +35,8 @@ class QL_MPCM(MPCM):
                 trainable=self.embed_trainable,
                 reuse=True, scope='Word'), self.embed_dropout)
 
+        batch_size = tf.shape(self.context)[0]
+        start_logits = end_logits = tf.zeros([batch_size, self.dim_output]) 
         for pp_idx in range(self.num_paraphrase + 1):
             if pp_idx > 0:
                 paraphrased = self.paraphrase_layer(question_rep, 
@@ -102,10 +71,12 @@ class QL_MPCM(MPCM):
                     self.context_len, reuse=(pp_idx>0))
             print('# Aggregation_layer', aggregates)        
 
-            start_logits, end_logits = self.prediction_layer(aggregates, reuse=(pp_idx>0))
+            sl, el = self.prediction_layer(aggregates, reuse=(pp_idx>0))
+            start_logits += sl
+            end_logits += el
             print('# Prediction_layer', start_logits, end_logits)
             # TODO: Add answer loss here
-
+            
         return start_logits, end_logits
 
 
