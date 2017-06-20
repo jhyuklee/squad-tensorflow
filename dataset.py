@@ -168,6 +168,7 @@ def preprocess(dataset, dictionary, c_maxlen, q_maxlen):
                 qa_item = {}
                 question = qa['question']
                 answers = qa['answers']
+                qa_item['q_raw'] = tokenize(question)
                 qa_item['q'], qa_item['q_len'] = word2idx(question, dictionary, q_maxlen)
                 qa_item['a_start'] = len(tokenize(context[:answers[0]['answer_start']]))
                 qa_item['a_end'] = qa_item['a_start'] + len(tokenize(answers[0]['text'])) - 1

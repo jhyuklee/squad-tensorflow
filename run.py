@@ -161,8 +161,9 @@ def test(model, dataset, params):
     mini_batch = []
     ground_truths = []
     context_raws = []
+    question_raws = []
     total_loss = total_f1 = total_em = total_cnt = 0
-
+    test_writer = open('./result/analysis.txt', 'w')
 
     for dataset_idx, dataset_item in enumerate(dataset):
         context = dataset_item['c']
@@ -171,6 +172,7 @@ def test(model, dataset, params):
         for qa in dataset_item['qa']:
             question = qa['q']
             question_len = qa['q_len']
+            question_raw = qa['q_raw']
             answer = qa['a']
             answer_start = qa['a_start']
             answer_end = qa['a_end']
@@ -178,6 +180,7 @@ def test(model, dataset, params):
                 answer_end])
             ground_truths.append(answer)
             context_raws.append(context_raw)
+            question_raws.append(question_raw)
            
             # Run and clear mini-batch
             if (len(mini_batch) == batch_size) or (dataset_idx == len(dataset) - 1):
@@ -214,11 +217,18 @@ def test(model, dataset, params):
                     predictions.append(' '.join([w for w in c[s_idx: e_idx+1]]))
 
                 em = f1 = 0 
-                for prediction, ground_truth in zip(predictions, ground_truths):
+                for prediction, ground_truth, ctr, qur in zip(
+                        predictions, ground_truths, context_raws, question_raws):
                     single_em = metric_max_over_ground_truths(
                             exact_match_score, prediction, ground_truth)
                     single_f1 = metric_max_over_ground_truths(
                             f1_score, prediction, ground_truth)
+
+                    test_writer.write(('[Correct]' if single_f1 > 0 else '[Incorrect]') + '\n')
+                    test_writer.write('C: ' + str(' '.join(ctr)) + '\n')
+                    test_writer.write('Q: ' + str(' '.join(qur)) + '\n')
+                    test_writer.write('ground_truth: ' + str(ground_truth) + '\n')
+                    test_writer.write('prediction: ' + str(prediction) + '\n\n')
 
                     prediction = prediction.split(' ') 
                     prediction = prediction[:10] if len(prediction) > 10 else prediction
@@ -246,10 +256,12 @@ def test(model, dataset, params):
                 mini_batch = []
                 ground_truths = []
                 context_raws = []
+    
+    test_writer.close()
 
     # Average result
     total_f1 /= total_cnt
     total_em /= total_cnt
     total_loss /= total_cnt
-    print('\nAverage loss: %.3f, f1: %.3f, em: %.3f' % (total_loss, total_f1, total_em)) 
+    print('\nAverage loss: %.3f, f1: %.3f, em: %.3f' % (total_loss, total_f1, total_em))
 

@@ -7,6 +7,7 @@ import datetime
 
 from model import Basic
 from mpcm import MPCM
+from ql_mpcm import QL_MPCM
 from time import gmtime, strftime
 from dataset import read_data, build_dict, load_glove, preprocess
 from run import train, test
@@ -19,6 +20,7 @@ flags.DEFINE_integer("dim_perspective", 20, "Maximum number of perspective (20)"
 flags.DEFINE_integer("dim_embed_word", 300, "Dimension of word embedding (300)")
 flags.DEFINE_integer("dim_rnn_cell", 100, "Dimension of RNN cell (100)")
 flags.DEFINE_integer("dim_hidden", 100, "Dimension of hidden layer")
+flags.DEFINE_integer("num_paraphrase", 1, "Maximum number of question paraphrasing")
 flags.DEFINE_integer("rnn_layer", 1, "Layer number of RNN ")
 flags.DEFINE_integer("context_maxlen", 0, "Predefined context max length")
 flags.DEFINE_float("rnn_dropout", 0.5, "Dropout of RNN cell")
@@ -32,12 +34,12 @@ flags.DEFINE_boolean("embed_trainable", False, "True to optimize embedded words"
 flags.DEFINE_boolean("test", False, "True to max iteration 5")
 flags.DEFINE_boolean("debug", False, "True to show debug message")
 
-flags.DEFINE_string("model", "m", "b: basic, m: mpcm")
+flags.DEFINE_string("model", "m", "b: basic, m: mpcm, q: ql_mpcm")
 flags.DEFINE_string('train_path', './data/train-v1.1.json', 'Training dataset path')
 flags.DEFINE_string('dev_path', './data/dev-v1.1.json',  'Development dataset path')
 flags.DEFINE_string('pred_path', './result/dev-v1.1-pred.json', 'Prediction output path')
 flags.DEFINE_string('glove_path', \
-        '~/common/glove/glove.840B.'+ str(tf.app.flags.FLAGS.dim_embed_word) +'d.txt', 'embed path')
+        '~/common/glove/glove.6B.'+ str(tf.app.flags.FLAGS.dim_embed_word) +'d.txt', 'embed path')
 flags.DEFINE_string('checkpoint_dir', './result/ckpt/', 'Checkpoint directory')
 FLAGS = flags.FLAGS
 
@@ -105,6 +107,8 @@ def main(_):
     # Make model and run experiment
     if saved_params['model'] == 'm':
         my_model = MPCM(params, initializer=[pretrained_glove, dictionary])
+    elif saved_params['model'] == 'q':
+        my_model = QL_MPCM(params, initializer=[pretrained_glove, dictionary])
     elif saved_params['model'] == 'b':
         my_model = Basic(params, initializer=[pretrained_glove, dictionary])
     else:
