@@ -65,8 +65,8 @@ def train(model, dataset, epoch, params):
                         print('a', batch_answer_end[kk])
                     """
                 
-                    grads, start_logits, end_logits = sess.run(
-                            [model.grads, model.start_logits, model.end_logits], 
+                    grads, start_logits, end_logits, lr = sess.run(
+                            [model.grads, model.start_logits, model.end_logits, model.learning_rate], 
                             feed_dict=feed_dict)
                     start_idx = [np.argmax(sl[:cl], 0) 
                             for sl, cl in zip(start_logits, batch_context_len)]
@@ -119,9 +119,9 @@ def train(model, dataset, epoch, params):
                     dprint('', params['debug'])
                     
                     _progress = progress(dataset_idx / float(len(dataset)))
-                    _progress += ("loss: %.3f, f1: %.3f, em: %.3f, progress: %d/%d, ep: %d" %
+                    _progress += ("loss: %.3f, f1: %.3f, em: %.3f, progress: %d/%d, lr: %.5f, ep: %d" %
                             (loss, f1 / len(predictions), em / len(predictions), 
-                            dataset_idx, len(dataset), epoch))
+                            dataset_idx, len(dataset), lr, epoch))
                     sys.stdout.write(_progress)
                     sys.stdout.flush()
                     
