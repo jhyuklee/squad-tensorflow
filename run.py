@@ -266,3 +266,5 @@ def test(model, dataset, params):
     total_loss /= total_cnt
     print('\nAverage loss: %.3f, f1: %.3f, em: %.3f' % (total_loss, total_f1, total_em))
 
+    return total_f1, total_em, total_loss
+

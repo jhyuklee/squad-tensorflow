@@ -23,6 +23,26 @@ class QL_MPCM(MPCM):
                         scope='Decode'), [-1, max_length, self.voca_size]), 2)
             
             return pp_question
+    
+    def optimize_loss(self, start_logits, end_logits):
+        batch_size = tf.shape(start_logits)[0]
+        start_loss = tf.zeros([batch_size, self.dim_output], tf.float32)
+        end_loss = tf.zeros([batch_size, self.dim_output], tf.float32)
+        for sl, el in zip(start_logits, end_logits):
+            start_loss += tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
+                logits=sl, labels=self.answer_start)) 
+            end_loss += tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
+                logits=el, labels=self.answer_end))
+            print('loss per question', sl, el)
+        self.loss = start_loss + end_loss
+        tf.summary.scalar('Loss', self.loss)
+        
+        print('# Calculating derivatives.. \n')
+        self.variables = tf.trainable_variables()
+        self.grads, _ = tf.clip_by_global_norm(tf.gradients(self.loss, self.variables),
+                self.max_grad_norm)
+        self.optimize = self.optimizer.apply_gradients(
+                zip(self.grads, self.variables), global_step=self.global_step)
 
     def build_model(self):
         print("Question Learning Model")
@@ -35,8 +55,8 @@ class QL_MPCM(MPCM):
                 trainable=self.embed_trainable,
                 reuse=True, scope='Word'), self.embed_dropout)
 
-        batch_size = tf.shape(self.context)[0]
-        start_logits = end_logits = tf.zeros([batch_size, self.dim_output]) 
+        start_logits = [] 
+        end_logits = []
         for pp_idx in range(self.num_paraphrase + 1):
             if pp_idx > 0:
                 paraphrased = self.paraphrase_layer(question_rep, 
@@ -72,11 +92,10 @@ class QL_MPCM(MPCM):
             print('# Aggregation_layer', aggregates)        
 
             sl, el = self.prediction_layer(aggregates, reuse=(pp_idx>0))
-            start_logits += sl
-            end_logits += el
-            print('# Prediction_layer', start_logits, end_logits)
-            # TODO: Add answer loss here
-            
-        return start_logits, end_logits
+            start_logits.append(sl)
+            end_logits.append(el)
+            print('# Prediction_layer', sl, el)
 
+        self.optimize_loss(start_logits, end_logits)
+        return start_logits, end_logits
 

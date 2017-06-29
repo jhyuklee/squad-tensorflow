@@ -258,5 +258,6 @@ class MPCM(Basic):
             # start_logits, end_logits = self.prediction_layer(context_rep)
             print('# Prediction_layer', start_logits, end_logits)
 
+        self.optimize_loss(start_logits, end_logits)
         return start_logits, end_logits
  

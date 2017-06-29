@@ -2,7 +2,6 @@ import sys
 import os
 import json
 import re
-import gensim
 import datetime
 import string
 import operator

@@ -51,18 +51,16 @@ class Basic(object):
 
         # model settings
         self.global_step = tf.Variable(0, name="step", trainable=False)
-        """
         self.learning_rate = tf.train.exponential_decay(
                  self.learning_rate, self.global_step,
                  self.decay_step, self.decay_rate, staircase=True)
-        """
         self.optimizer = tf.train.AdamOptimizer(self.learning_rate)
         self.initialize_embedding(self.initializer)
 
         # build model
         start_time = datetime.datetime.now()
         self.start_logits, self.end_logits = self.build_model()
-        self.optimize_loss(self.start_logits, self.end_logits)
+        # self.optimize_loss(self.start_logits, self.end_logits)
         self.save_settings()
         self.session.run(tf.global_variables_initializer())
         elapsed_time = datetime.datetime.now() - start_time
