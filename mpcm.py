@@ -254,10 +254,9 @@ class MPCM(Basic):
             print('# Aggregation_layer', aggregates)        
 
         with tf.device('/gpu:0'):
-            start_logits, end_logits = self.prediction_layer(aggregates)
+            self.start_logits, self.end_logits = self.prediction_layer(aggregates)
             # start_logits, end_logits = self.prediction_layer(context_rep)
-            print('# Prediction_layer', start_logits, end_logits)
+            print('# Prediction_layer', self.start_logits, self.end_logits)
 
-        self.optimize_loss(start_logits, end_logits)
-        return start_logits, end_logits
+        self.optimize_loss(self.start_logits, self.end_logits)
  

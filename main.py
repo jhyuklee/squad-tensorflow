@@ -17,15 +17,15 @@ from run import train, test
 flags = tf.app.flags
 flags.DEFINE_integer('train_epoch', 100, 'Training epoch')
 flags.DEFINE_integer('test_epoch', 1, 'Test for every n training epoch')
-flags.DEFINE_integer("batch_size", 64, "Size of batch (32)")
-flags.DEFINE_integer("dim_perspective", 10, "Maximum number of perspective (20)")
+flags.DEFINE_integer("batch_size", 32, "Size of batch (32)")
+flags.DEFINE_integer("dim_perspective", 20, "Maximum number of perspective (20)")
 flags.DEFINE_integer("dim_embed_word", 300, "Dimension of word embedding (300)")
-flags.DEFINE_integer("dim_rnn_cell", 40, "Dimension of RNN cell (100)")
+flags.DEFINE_integer("dim_rnn_cell", 100, "Dimension of RNN cell (100)")
 flags.DEFINE_integer("dim_hidden", 100, "Dimension of hidden layer")
 flags.DEFINE_integer("num_paraphrase", 1, "Maximum number of question paraphrasing")
 flags.DEFINE_integer("rnn_layer", 1, "Layer number of RNN ")
 flags.DEFINE_integer("context_maxlen", 0, "Predefined context max length")
-flags.DEFINE_integer("validation_cnt", 10, "Number of model validation")
+flags.DEFINE_integer("validation_cnt", 100, "Number of model validation")
 flags.DEFINE_float("rnn_dropout", 0.5, "Dropout of RNN cell")
 flags.DEFINE_float("hidden_dropout", 0.5, "Dropout rate of hidden layer")
 flags.DEFINE_float("embed_dropout", 0.9, "Dropout rate of embedding layer")
@@ -44,45 +44,62 @@ flags.DEFINE_string('dev_path', './data/dev-v1.1.json',  'Development dataset pa
 flags.DEFINE_string('pred_path', './result/dev-v1.1-pred.json', 'Prediction output path')
 flags.DEFINE_string('glove_path', \
         '~/common/glove/glove.6B.'+ str(tf.app.flags.FLAGS.dim_embed_word) +'d.txt', 'embed path')
+flags.DEFINE_string('validation_path', './result/validation.txt', 'Validation file path')
 flags.DEFINE_string('checkpoint_dir', './result/ckpt/', 'Checkpoint directory')
 FLAGS = flags.FLAGS
 
 
-def run(model, params, train_dataset, dev_dataset):
-    max_em = max_f1 = max_point = 0
+def run(model, params, train_dataset, dev_dataset, idx2word):
+    max_em = max_f1 = max_ep = 0
     train_epoch = params['train_epoch']
     test_epoch = params['test_epoch']
 
     for epoch_idx in range(train_epoch):
         start_time = datetime.datetime.now()
         print("\nEpoch %d" % (epoch_idx + 1))
-        train(model, train_dataset, epoch_idx + 1, params)
+        train(model, train_dataset, epoch_idx + 1, idx2word, params)
         elapsed_time = datetime.datetime.now() - start_time
         print('Traning Done', elapsed_time)
         
         if (epoch_idx + 1) % test_epoch == 0:
             f1, em, loss = test(model, dev_dataset, params)
             if params['save']:
-                model.save(params['checkpoint_dir'], epoch_idx+1)
+                model.save(params['checkpoint_dir'])
 
-            if max_f1 > f1 - 5e-1 and epoch_idx > 0:
-                print('Max f1: %.3f, em: %.3f, epoch: %d' % (max_f1, max_em, max_point))
+            if max_f1 > f1 - 1e-2 and epoch_idx > 0:
+                print('Max f1: %.3f, em: %.3f, epoch: %d' % (max_f1, max_em, max_ep))
                 print('Early stopping')
                 break
             else:
-                max_point = max_point if max_em > em else epoch_idx 
+                max_ep = max_ep if max_em > em else epoch_idx 
                 max_em = max_em if max_em > em else em 
                 max_f1 = max_f1 if max_f1 > f1 else f1
-                print('Max f1: %.3f, em: %.3f, epoch: %d' % (max_f1, max_em, max_point))
+                print('Max f1: %.3f, em: %.3f, epoch: %d' % (max_f1, max_em, max_ep))
     
     model.reset_graph()
+    return max_f1, max_em, max_ep
 
 
 def sample_parameters(params):
-    params['learning_rate'] = float('%.6f' % (random.uniform(1e-5, 1e-2)))
-    params['dim_rnn_cell'] = random.randint(1, 10) * 10 
-
+    params['learning_rate'] = float('{0:.5f}'.format(random.randint(1, 100) * 1e-5))
+    # params['dim_rnn_cell'] = random.randint(4, 10) * 10 
+    params['batch_size'] = random.randint(1, 12) * 8
+    params['dim_perspective'] = random.randint(1, 5) * 5
     return params
+
+
+def write_result(params, f1, em, ep):
+    f = open(params['validation_path'], 'a')
+    f.write('Model %s\n' % params['model'])
+    f.write('learning_rate / dim_rnn_cell / batch_size /\
+            dim_perspective / dim_embed_word\n')
+    f.write('[%f / %d / %d / %d / %d]\n' % (params['learning_rate'], 
+        params['dim_rnn_cell'], params['batch_size'],
+        params['dim_perspective'],
+        params['dim_embed_word']))
+    f.write('F1 / EM / EP\n')
+    f.write('[%.3f / %.3f / %d]\n\n' % (f1, em, ep))
+    f.close()
 
 
 def main(_):
@@ -108,16 +125,16 @@ def main(_):
         - title
     """
     # Preprocess dataset
-    dictionary, _, c_maxlen, q_maxlen = build_dict(train_dataset, saved_params)
-    pretrained_glove, dictionary = load_glove(dictionary, saved_params)
+    word2idx, idx2word, c_maxlen, q_maxlen = build_dict(train_dataset, saved_params)
+    pretrained_glove, word2idx = load_glove(word2idx, saved_params)
     if saved_params['context_maxlen'] > 0: 
         c_maxlen = saved_params['context_maxlen']
 
-    train_dataset = preprocess(train_dataset, dictionary, c_maxlen, q_maxlen)
-    dev_dataset = preprocess(dev_dataset, dictionary, c_maxlen, q_maxlen)
+    train_dataset = preprocess(train_dataset, word2idx, c_maxlen, q_maxlen)
+    dev_dataset = preprocess(dev_dataset, word2idx, c_maxlen, q_maxlen)
     saved_params['context_maxlen'] = c_maxlen
     saved_params['question_maxlen'] = q_maxlen
-    saved_params['voca_size'] = len(dictionary)
+    saved_params['voca_size'] = len(word2idx)
     saved_params['dim_output'] = c_maxlen
 
     for model_idx in range(saved_params['validation_cnt']):
@@ -131,14 +148,17 @@ def main(_):
 
         # Make model and run experiment
         if params['model'] == 'm':
-            my_model = MPCM(params, initializer=[pretrained_glove, dictionary])
+            my_model = MPCM(params, initializer=[pretrained_glove, word2idx])
         elif params['model'] == 'q':
-            my_model = QL_MPCM(params, initializer=[pretrained_glove, dictionary])
+            my_model = QL_MPCM(params, initializer=[pretrained_glove, word2idx])
         elif params['model'] == 'b':
-            my_model = Basic(params, initializer=[pretrained_glove, dictionary])
+            my_model = Basic(params, initializer=[pretrained_glove, word2idx])
         else:
             assert False, "Check your version %s" % params['model']
-        run(my_model, params, train_dataset, dev_dataset) 
+       
+        params['model'] += ('_%d' % model_idx)
+        f1, em, max_ep = run(my_model, params, train_dataset, dev_dataset, idx2word)
+        write_result(params, f1, em, max_ep)
 
 
 if __name__ == '__main__':

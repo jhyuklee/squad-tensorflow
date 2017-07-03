@@ -8,6 +8,12 @@ from ops import *
 class QL_MPCM(MPCM):
     def __init__(self, params, initializer):
         self.num_paraphrase = params['num_paraphrase']
+        self.rewards = []
+        self.paraphrases = []
+        self.paraphrase_logits = []
+        self.paraphrase_optimize = []
+        for _ in range(self.num_paraphrase):
+            self.rewards.append(tf.placeholder(tf.float32, [None]))
         super(QL_MPCM, self).__init__(params, initializer)
 
     def paraphrase_layer(self, question, length, max_length, reuse=None):
@@ -15,34 +21,24 @@ class QL_MPCM(MPCM):
             cell = lstm_cell(self.dim_rnn_cell, self.rnn_layer, self.rnn_dropout)
             r_inputs = rnn_reshape(question, self.dim_rnn_cell * 2, max_length)
             outputs = rnn_model(r_inputs, length, max_length, cell, self.params)
-            # TODO: argmax not differentiable!
-            pp_question = tf.argmax(
-                    tf.reshape(
-                    linear(inputs=outputs,
-                        output_dim=self.voca_size,
-                        scope='Decode'), [-1, max_length, self.voca_size]), 2)
-            
-            return pp_question
-    
-    def optimize_loss(self, start_logits, end_logits):
-        batch_size = tf.shape(start_logits)[0]
-        start_loss = tf.zeros([batch_size, self.dim_output], tf.float32)
-        end_loss = tf.zeros([batch_size, self.dim_output], tf.float32)
-        for sl, el in zip(start_logits, end_logits):
-            start_loss += tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
-                logits=sl, labels=self.answer_start)) 
-            end_loss += tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
-                logits=el, labels=self.answer_end))
-            print('loss per question', sl, el)
-        self.loss = start_loss + end_loss
-        tf.summary.scalar('Loss', self.loss)
-        
-        print('# Calculating derivatives.. \n')
-        self.variables = tf.trainable_variables()
-        self.grads, _ = tf.clip_by_global_norm(tf.gradients(self.loss, self.variables),
-                self.max_grad_norm)
-        self.optimize = self.optimizer.apply_gradients(
-                zip(self.grads, self.variables), global_step=self.global_step)
+           
+            pp_logits = tf.reshape(linear(inputs=outputs,
+                output_dim=self.voca_size,
+                scope='Decode'), [-1, max_length, self.voca_size])
+
+            # Not argamx but sample?
+            pp_question = tf.argmax(pp_logits, 2)
+            return pp_question, pp_logits
+
+    def optimize_paraphrased(self, pp_sample, pp_logits, paraphrase_cnt):
+        print("# Calculating Paraphrased Loss")
+        reward = self.rewards[paraphrase_cnt - 1]
+        log_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
+                logits=pp_logits, labels=pp_sample)
+        policy_grads = tf.expand_dims(reward, -1) * log_loss
+        policy_grads = tf.reduce_mean(tf.reduce_sum(policy_grads))
+        optimize = self.optimizer.minimize(policy_grads)
+        self.paraphrase_optimize.append(optimize)
 
     def build_model(self):
         print("Question Learning Model")
@@ -59,10 +55,10 @@ class QL_MPCM(MPCM):
         end_logits = []
         for pp_idx in range(self.num_paraphrase + 1):
             if pp_idx > 0:
-                paraphrased = self.paraphrase_layer(question_rep, 
+                paraphrased, pp_logits = self.paraphrase_layer(question_rep, 
                         self.question_len, self.question_maxlen, reuse=(pp_idx>1))
+                self.paraphrases.append(paraphrased)
                 print('# Paraphrase_layer %d' % (pp_idx), paraphrased)
-                # TODO: Add paraphrase loss here
             else:
                 paraphrased = self.question
             
@@ -89,13 +85,15 @@ class QL_MPCM(MPCM):
 
             aggregates = self.aggregation_layer(matchings, self.context_maxlen,
                     self.context_len, reuse=(pp_idx>0))
-            print('# Aggregation_layer', aggregates)        
+            print('# Aggregation_layer', aggregates) 
 
-            sl, el = self.prediction_layer(aggregates, reuse=(pp_idx>0))
-            start_logits.append(sl)
-            end_logits.append(el)
+            sl, el= self.prediction_layer(aggregates, reuse=(pp_idx>0))
             print('# Prediction_layer', sl, el)
 
-        self.optimize_loss(start_logits, end_logits)
-        return start_logits, end_logits
+            if pp_idx > 0:
+                self.paraphrase_logits.append([sl, el])
+                self.optimize_paraphrased(paraphrased, pp_logits, pp_idx)
+            else:
+             self.start_logits, self.end_logits = [sl, el]
+             self.optimize_loss(self.start_logits, self.end_logits)
 

@@ -59,8 +59,7 @@ class Basic(object):
 
         # build model
         start_time = datetime.datetime.now()
-        self.start_logits, self.end_logits = self.build_model()
-        # self.optimize_loss(self.start_logits, self.end_logits)
+        self.build_model()
         self.save_settings()
         self.session.run(tf.global_variables_initializer())
         elapsed_time = datetime.datetime.now() - start_time
@@ -74,7 +73,6 @@ class Basic(object):
             print(vv.eval(session=self.session)[self.dictionary['apple']][:5])
             print(vv.eval(session=self.session), '\n')
         
-
     def encoder(self, inputs, length, max_length, dim_input, dim_embed, 
             initializer=None, trainable=True, reuse=False, scope='encoding'):
         
@@ -91,7 +89,6 @@ class Basic(object):
             inputs_reshape = rnn_reshape(inputs_embed, dim_embed, max_length)
             outputs = rnn_model(inputs_reshape, length, max_length, fw_cell, self.params)
             return outputs
-    
 
     def build_model(self):
         print("###  Building a Basic model ###")
@@ -130,8 +127,7 @@ class Basic(object):
             scope='Output_e')
 
         print('start, end logits', start_logits, end_logits)
-
-        return start_logits, end_logits
+        self.optimize_loss(start_logits, end_logits)
     
     def optimize_loss(self, start_logits, end_logits):
         start_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
@@ -176,8 +172,8 @@ class Basic(object):
     def reset_graph():
         tf.reset_default_graph()
 
-    def save(self, checkpoint_dir, epoch):
-        file_name = "%s_%d.model" % (self.model, epoch)
+    def save(self, checkpoint_dir):
+        file_name = "%s.model" % self.model
         self.saver.save(self.session, os.path.join(checkpoint_dir, file_name))
         print("Model saved", file_name)
 
