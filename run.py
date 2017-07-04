@@ -12,6 +12,7 @@ def train(model, dataset, epoch, idx2word, params):
     mini_batch = []
     ground_truths = []
     context_raws = []
+    question_raws = []
     g_norm_list = []
     total_loss = total_f1 = total_em = total_cnt = 0
 
@@ -22,6 +23,7 @@ def train(model, dataset, epoch, idx2word, params):
         for qa in dataset_item['qa']:
             question = qa['q']
             question_len = qa['q_len']
+            question_raw = qa['q_raw']
             answer = qa['a']
             answer_start = qa['a_start']
             answer_end = qa['a_end']
@@ -29,6 +31,7 @@ def train(model, dataset, epoch, idx2word, params):
                 question_len, answer_start, answer_end])
             ground_truths.append(answer)
             context_raws.append(context_raw)
+            question_raws.append(question_raw)
            
             # Run and clear mini-batch
             if (len(mini_batch) == batch_size) or (dataset_idx == len(dataset) - 1):
@@ -59,17 +62,24 @@ def train(model, dataset, epoch, idx2word, params):
                                 batch_context_len, context_raws, params)
                         em_s, f1_s = em_f1_score(predictions, ground_truths, params)
 
-                        feed_dict[model.rewards[pp_idx]] = [(em + f1) if em + f1 > 0 \
-                                else -1 for em, f1 in zip(em_s, f1_s)]
+                        running_f1 = total_f1 / (total_cnt + 1e-5)
+                        running_em = total_em / (total_cnt + 1e-5)
+                        feed_dict[model.rewards[pp_idx]] = [(em + f1)
+                                for em, f1 in zip(em_s, f1_s)]
+                        feed_dict[model.baselines[pp_idx]] = [running_f1 + running_em]
                         _, pp_sample = sess.run([model.paraphrase_optimize[pp_idx],
                             model.paraphrases[pp_idx]], feed_dict=feed_dict)
 
                         if dataset_idx % 5 == 0:
-                            for sample in pp_sample:
-                                pp = ' '.join([idx2word[idx] for idx in sample])
+                            for sample, q_raw in zip(pp_sample, question_raws):
+                                pp = ' '.join([idx2word[idx] 
+                                    for idx in sample[:len(q_raw)]])
+                                qq = ' '.join(q_raw)
                                 print('Sampled question: [%s]' % (pp))
+                                print('Original question: [%s]' % (qq))
                             print('Paraphrased f1: %.3f, em: %.3f' % (
-                                np.sum(f1_s), np.sum(em_s)))
+                                np.sum(f1_s) / len(predictions), 
+                                np.sum(em_s) / len(predictions)))
                 
                 # Print intermediate result
                 if dataset_idx % 5 == 0:
@@ -139,6 +149,7 @@ def train(model, dataset, epoch, idx2word, params):
                 mini_batch = []
                 ground_truths = []
                 context_raws = []
+                question_raws = []
 
     # Average result
     total_f1 /= total_cnt

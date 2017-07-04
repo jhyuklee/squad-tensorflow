@@ -17,11 +17,11 @@ from run import train, test
 flags = tf.app.flags
 flags.DEFINE_integer('train_epoch', 100, 'Training epoch')
 flags.DEFINE_integer('test_epoch', 1, 'Test for every n training epoch')
-flags.DEFINE_integer("batch_size", 32, "Size of batch (32)")
-flags.DEFINE_integer("dim_perspective", 20, "Maximum number of perspective (20)")
-flags.DEFINE_integer("dim_embed_word", 300, "Dimension of word embedding (300)")
-flags.DEFINE_integer("dim_rnn_cell", 100, "Dimension of RNN cell (100)")
-flags.DEFINE_integer("dim_hidden", 100, "Dimension of hidden layer")
+flags.DEFINE_integer("batch_size", 8, "Size of batch (32)")
+flags.DEFINE_integer("dim_perspective", 10, "Maximum number of perspective (20)")
+flags.DEFINE_integer("dim_embed_word", 50, "Dimension of word embedding (300)")
+flags.DEFINE_integer("dim_rnn_cell", 40, "Dimension of RNN cell (100)")
+flags.DEFINE_integer("dim_hidden", 40, "Dimension of hidden layer")
 flags.DEFINE_integer("num_paraphrase", 1, "Maximum number of question paraphrasing")
 flags.DEFINE_integer("rnn_layer", 1, "Layer number of RNN ")
 flags.DEFINE_integer("context_maxlen", 0, "Predefined context max length")
@@ -29,7 +29,7 @@ flags.DEFINE_integer("validation_cnt", 100, "Number of model validation")
 flags.DEFINE_float("rnn_dropout", 0.5, "Dropout of RNN cell")
 flags.DEFINE_float("hidden_dropout", 0.5, "Dropout rate of hidden layer")
 flags.DEFINE_float("embed_dropout", 0.9, "Dropout rate of embedding layer")
-flags.DEFINE_float("learning_rate", 1e-4, "Learning rate of the optimzier")
+flags.DEFINE_float("learning_rate", 1e-3, "Learning rate of the optimzier")
 flags.DEFINE_float("decay_rate", 1.00, "Decay rate of learning rate (0.99)")
 flags.DEFINE_float("decay_step", 100, "Decay step of learning rate")
 flags.DEFINE_float("max_grad_norm", 5.0, "Maximum gradient to clip")
@@ -37,7 +37,7 @@ flags.DEFINE_boolean("embed_trainable", False, "True to optimize embedded words"
 flags.DEFINE_boolean("test", False, "True to run only iteration 5")
 flags.DEFINE_boolean("debug", False, "True to show debug message")
 flags.DEFINE_boolean("save", False, "True to save model after testing")
-flags.DEFINE_boolean("sample_params", True, "True to sample parameters")
+flags.DEFINE_boolean("sample_params", False, "True to sample parameters")
 flags.DEFINE_string("model", "m", "b: basic, m: mpcm, q: ql_mpcm")
 flags.DEFINE_string('train_path', './data/train-v1.1.json', 'Training dataset path')
 flags.DEFINE_string('dev_path', './data/dev-v1.1.json',  'Development dataset path')
@@ -81,7 +81,7 @@ def run(model, params, train_dataset, dev_dataset, idx2word):
 
 
 def sample_parameters(params):
-    params['learning_rate'] = float('{0:.5f}'.format(random.randint(1, 100) * 1e-5))
+    params['learning_rate'] = float('{0:.5f}'.format(random.randint(1, 100) * 1e-4))
     # params['dim_rnn_cell'] = random.randint(4, 10) * 10 
     params['batch_size'] = random.randint(1, 12) * 8
     params['dim_perspective'] = random.randint(1, 5) * 5

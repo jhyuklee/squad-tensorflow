@@ -129,7 +129,7 @@ class Basic(object):
         print('start, end logits', start_logits, end_logits)
         self.optimize_loss(start_logits, end_logits)
     
-    def optimize_loss(self, start_logits, end_logits):
+    def optimize_loss(self, start_logits, end_logits, vars=None):
         start_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
             logits=start_logits, labels=self.answer_start)) 
         end_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
@@ -138,7 +138,10 @@ class Basic(object):
         tf.summary.scalar('Loss', self.loss)
         
         print('# Calculating derivatives.. \n')
-        self.variables = tf.trainable_variables()
+        if vars == None:
+            self.variables = tf.trainable_variables()
+        else:
+            self.variables = vars
         self.grads, _ = tf.clip_by_global_norm(tf.gradients(self.loss, self.variables),
                 self.max_grad_norm)
         self.optimize = self.optimizer.apply_gradients(
