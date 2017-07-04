@@ -26,10 +26,10 @@ class MPCM(Basic):
         with tf.variable_scope('Representation_Layer/' + scope, reuse=reuse) as scope:
             fw_cell = lstm_cell(self.dim_rnn_cell, self.rnn_layer, self.rnn_dropout)
             bw_cell = lstm_cell(self.dim_rnn_cell, self.rnn_layer, self.rnn_dropout)
-            r_inputs = rnn_reshape(inputs, self.dim_embed_word, max_length)
-            outputs = bi_rnn_model(r_inputs, length, fw_cell, bw_cell)
+            # r_inputs = rnn_reshape(inputs, self.dim_embed_word, max_length)
+            outputs, state = bi_rnn_model(inputs, length, fw_cell, bw_cell)
             # outputs = tf.Print(outputs, [outputs], 'bi output', summarize=20 * 31) 
-            return outputs
+            return outputs, state
     
     def matching_layer(self, context, question, reuse=None):
         with tf.variable_scope('Matching_Layer', reuse=reuse) as scope: 
@@ -146,9 +146,8 @@ class MPCM(Basic):
         with tf.variable_scope('Aggregation_Layer', reuse=reuse) as scope:
             fw_cell = lstm_cell(self.dim_rnn_cell, self.rnn_layer, self.rnn_dropout)
             bw_cell = lstm_cell(self.dim_rnn_cell, self.rnn_layer, self.rnn_dropout)
-            r_inputs = rnn_reshape(inputs, self.dim_perspective * 6, max_length)
-            # r_inputs = rnn_reshape(inputs, self.dim_rnn_cell * 2, max_length)
-            outputs = bi_rnn_model(r_inputs, length, fw_cell, bw_cell)
+            # r_inputs = rnn_reshape(inputs, self.dim_perspective * 6, max_length)
+            outputs, _ = bi_rnn_model(inputs, length, fw_cell, bw_cell)
 
             """
             fw_outputs, bw_outputs = tf.split(outputs, num_or_size_splits=2, axis=2)
@@ -235,11 +234,11 @@ class MPCM(Basic):
             self.dim_rnn_cell = int(self.dim_embed_word / 2)
             aggregates = self.matching_layer(context_filtered, question_embed)
             """
-            context_rep = self.representation_layer(context_filtered, self.context_len,
-                    self.context_maxlen, scope='Context')
+            context_rep, _ = self.representation_layer(context_filtered, 
+                    self.context_len, self.context_maxlen, scope='Context')
             # context_rep = dropout(context_rep, self.embed_dropout)
-            question_rep = self.representation_layer(question_embed, self.question_len,
-                    self.question_maxlen, scope='Question')
+            question_rep, _ = self.representation_layer(question_embed, 
+                    self.question_len, self.question_maxlen, scope='Question')
             # question_rep = dropout(question_rep, self.embed_dropout)
             print('# Representation_layer', context_rep, question_rep)
 

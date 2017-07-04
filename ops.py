@@ -45,10 +45,11 @@ def rnn_model(inputs, input_len, max_time_step, cell, params, gather_last=False)
 
 def bi_rnn_model(inputs, input_len, fw_cell, bw_cell):
     with tf.variable_scope('Bi-RNN') as scope:
-        outputs, _, _ = tf.contrib.rnn.static_bidirectional_rnn(fw_cell, bw_cell, inputs,
+        outputs, state = tf.nn.bidirectional_dynamic_rnn(
+                fw_cell, bw_cell, inputs,
                 sequence_length=input_len, dtype=tf.float32, scope=scope)
-        outputs = tf.transpose(tf.stack(outputs), [1, 0, 2])
-        return outputs
+        outputs = tf.concat(axis=2, values=[outputs[0], outputs[1]])
+        return outputs, state
 
 
 def embedding_lookup(inputs, voca_size, embedding_dim, initializer=None, trainable=True,

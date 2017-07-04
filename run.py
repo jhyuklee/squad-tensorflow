@@ -76,7 +76,7 @@ def train(model, dataset, epoch, idx2word, params):
                                     for idx in sample[:len(q_raw)]])
                                 qq = ' '.join(q_raw)
                                 print('Sampled question: [%s]' % (pp))
-                                print('Original question: [%s]' % (qq))
+                                # print('Original question: [%s]' % (qq))
                             print('Paraphrased f1: %.3f, em: %.3f' % (
                                 np.sum(f1_s) / len(predictions), 
                                 np.sum(em_s) / len(predictions)))

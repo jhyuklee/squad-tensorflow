@@ -18,47 +18,38 @@ class QL_MPCM(MPCM):
             self.baselines.append(tf.placeholder(tf.float32, [None]))
         super(QL_MPCM, self).__init__(params, initializer)
 
-    def paraphrase_layer(self, question, length, max_length, reuse=None):
+    def paraphrase_layer(self, question_state, length, max_length, reuse=None):
+        with tf.variable_scope('Word', reuse=True):
+            embedding_table = tf.get_variable("embed", dtype=tf.float32)
+        
         with tf.variable_scope('Paraphrase_Layer', reuse=reuse) as scope:
-            weights = tf.get_variable('out_w', [self.cell_dim, self.input_dim],
+            batch_size = tf.shape(length)[0]
+            cell = lstm_cell(self.dim_rnn_cell, self.rnn_layer, self.rnn_dropout)
+            dummy_input = tf.zeros([batch_size, max_length, self.dim_embed_word])
+            r_inputs = rnn_reshape(dummy_input, self.dim_embed_word, max_length)
+            
+            weights = tf.get_variable('out_w', [self.dim_rnn_cell, self.voca_size],
                                       initializer=tf.random_normal_initializer())
-            biases = tf.get_variable('out_b', [self.input_dim],
+            biases = tf.get_variable('out_b', [self.voca_size],
                                      initializer=tf.constant_initializer(0.0))
 
             def loop_function(prev, i):
-                return tf.matmul(prev, weights) + biases
-
-            cell = lstm_cell(self.dim_rnn_cell, self.rnn_layer, self.rnn_dropout)
-            r_inputs = rnn_reshape(question, self.dim_rnn_cell * 2, max_length)
-            # outputs = rnn_model(r_inputs, length, max_length, cell, self.params)
-            # pp_logits = tf.reshape(linear(inputs=outputs,
-            #     output_dim=self.voca_size,
-            #     scope='Decode'), [-1, max_length, self.voca_size])
-
-            # TODO: pass state to rnn_decoder
+                word_idx = tf.argmax(tf.matmul(prev, weights) + biases, 1)
+                embed_word = tf.nn.embedding_lookup(embedding_table, word_idx)
+                return embed_word
+           
+            print('state passed', question_state[0])
+            print('zero state', cell.zero_state(batch_size, tf.float32))
+            zero_state = cell.zero_state(batch_size, tf.float32)
             outputs, state = tf.contrib.legacy_seq2seq.rnn_decoder(r_inputs, 
-                    None, cell, loop_function)
-            outputs_t = tf.squeeze(tf.transpose(tf.stack(outputs), [1, 0, 2]))
+                    zero_state, cell, loop_function)
+            outputs_t = tf.reshape(tf.stack(outputs), [-1, self.dim_rnn_cell])
             pp_logits = tf.reshape(tf.matmul(outputs_t, weights) + biases,
                     [-1, max_length, self.voca_size])
 
             # Not argamx but softmax approximation?
-            pp_question = tf.argmax(pp_logits, 2)
-            return pp_question, pp_logits
-
-    def decoder(self, inputs, state, reuse=None):
-        with tf.variable_scope('decoder', reuse=reuse) as scope:
-
-            def loop_function(prev, i):
-                return tf.matmul(prev, weights) + biases
-            
-            cell = lstm_cell(self.cell_dim, 1, self.cell_keep_prob)
-            inputs_t = rnn_reshape(inputs, self.input_dim, self.detection_len)
-            outputs, state = tf.contrib.legacy_seq2seq.rnn_decoder(inputs_t, 
-                    state, cell, loop_function)
-            outputs_t = tf.squeeze(tf.transpose(tf.stack(outputs), [1, 0, 2]))
-            decoded = tf.matmul(outputs_t, weights) + biases
-            return decoded
+            pp_sample = tf.argmax(pp_logits, 2)
+            return pp_sample, pp_logits
 
     def optimize_paraphrased(self, pp_sample, pp_logits, paraphrase_cnt):
         print("# Calculating Paraphrased Loss\n")
@@ -93,7 +84,7 @@ class QL_MPCM(MPCM):
         end_logits = []
         for pp_idx in range(self.num_paraphrase + 1):
             if pp_idx > 0:
-                paraphrased, pp_logits = self.paraphrase_layer(question_rep, 
+                paraphrased, pp_logits = self.paraphrase_layer(q_state, 
                         self.question_len, self.question_maxlen, reuse=(pp_idx>1))
                 self.paraphrases.append(paraphrased)
                 print('# Paraphrase_layer %d' % (pp_idx), paraphrased)
@@ -108,13 +99,14 @@ class QL_MPCM(MPCM):
                     trainable=self.embed_trainable,
                     reuse=True, scope='Word'), self.embed_dropout)
 
-            question_rep = self.representation_layer(question_embed, self.question_len,
-                    self.question_maxlen, scope='Question', reuse=(pp_idx>0))
+            question_rep, q_state = self.representation_layer(question_embed, 
+                    self.question_len, self.question_maxlen,
+                    scope='Question', reuse=(pp_idx>0))
             
             context_filtered = self.filter_layer(context_embed, question_embed, reuse=(pp_idx>0))
             print('# Filter_layer', context_filtered)
           
-            context_rep = self.representation_layer(context_filtered, self.context_len,
+            context_rep, _ = self.representation_layer(context_filtered, self.context_len,
                     self.context_maxlen, scope='Context', reuse=(pp_idx>0))
             print('# Representation_layer', context_rep, question_rep)
 
