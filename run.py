@@ -50,7 +50,8 @@ def train(model, dataset, epoch, idx2word, params):
                         model.answer_end: batch_answer_end,
                         model.rnn_dropout: params['rnn_dropout'],
                         model.hidden_dropout: params['hidden_dropout'],
-                        model.embed_dropout: params['embed_dropout']}
+                        model.embed_dropout: params['embed_dropout'],
+                        model.learning_rate: params['learning_rate']}
                 _, loss = sess.run([model.optimize, model.loss], feed_dict=feed_dict)
 
                 if 'q' in params['model']:
@@ -67,22 +68,26 @@ def train(model, dataset, epoch, idx2word, params):
                         feed_dict[model.rewards[pp_idx]] = [(em + f1)
                                 for em, f1 in zip(em_s, f1_s)]
                         feed_dict[model.baselines[pp_idx]] = [running_f1 + running_em]
-                        _, pp_sample = sess.run([model.paraphrase_optimize[pp_idx],
-                            model.paraphrases[pp_idx]], feed_dict=feed_dict)
+                        _, pp_sample, pp_loss = sess.run([
+                            model.paraphrase_optimize[pp_idx],
+                            model.paraphrases[pp_idx], model.policy_loss], 
+                            feed_dict=feed_dict)
 
                         if dataset_idx % 5 == 0:
+                            print()
                             for sample, q_raw in zip(pp_sample, question_raws):
                                 pp = ' '.join([idx2word[idx] 
                                     for idx in sample[:len(q_raw)]])
                                 qq = ' '.join(q_raw)
                                 print('Sampled question: [%s]' % (pp))
-                                # print('Original question: [%s]' % (qq))
-                            print('Paraphrased f1: %.3f, em: %.3f' % (
+                                print('Original question: [%s]' % (qq))
+                            print('Paraphrased f1: %.3f, em: %.3f loss: %.3f' % (
                                 np.sum(f1_s) / len(predictions), 
-                                np.sum(em_s) / len(predictions)))
+                                np.sum(em_s) / len(predictions),
+                                pp_loss))
                 
                 # Print intermediate result
-                if dataset_idx % 5 == 0:
+                if dataset_idx % 3 == 0:
                     """
                     # Dataset Debugging
                     print(batch_context.shape, batch_context_len.shape, 

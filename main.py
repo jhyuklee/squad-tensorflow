@@ -29,7 +29,7 @@ flags.DEFINE_integer("validation_cnt", 100, "Number of model validation")
 flags.DEFINE_float("rnn_dropout", 0.5, "Dropout of RNN cell")
 flags.DEFINE_float("hidden_dropout", 0.5, "Dropout rate of hidden layer")
 flags.DEFINE_float("embed_dropout", 0.9, "Dropout rate of embedding layer")
-flags.DEFINE_float("learning_rate", 1e-3, "Learning rate of the optimzier")
+flags.DEFINE_float("learning_rate", 1e-3, "Initial learning rate of the optimzier")
 flags.DEFINE_float("decay_rate", 1.00, "Decay rate of learning rate (0.99)")
 flags.DEFINE_float("decay_step", 100, "Decay step of learning rate")
 flags.DEFINE_float("max_grad_norm", 5.0, "Maximum gradient to clip")
@@ -50,16 +50,16 @@ FLAGS = flags.FLAGS
 
 
 def run(model, params, train_dataset, dev_dataset, idx2word):
-    max_em = max_f1 = max_ep = 0
+    max_em = max_f1 = max_ep = es_cnt = 0
     train_epoch = params['train_epoch']
     test_epoch = params['test_epoch']
 
     for epoch_idx in range(train_epoch):
         start_time = datetime.datetime.now()
-        print("\nEpoch %d" % (epoch_idx + 1))
+        print("\n[Epoch %d]" % (epoch_idx + 1))
         train(model, train_dataset, epoch_idx + 1, idx2word, params)
         elapsed_time = datetime.datetime.now() - start_time
-        print('Traning Done', elapsed_time)
+        print('Epoch %d Done in %s' % (epoch_idx + 1, elapsed_time))
         
         if (epoch_idx + 1) % test_epoch == 0:
             f1, em, loss = test(model, dev_dataset, params)
@@ -68,10 +68,19 @@ def run(model, params, train_dataset, dev_dataset, idx2word):
 
             if max_f1 > f1 - 1e-2 and epoch_idx > 0:
                 print('Max f1: %.3f, em: %.3f, epoch: %d' % (max_f1, max_em, max_ep))
-                print('Early stopping')
-                break
+                es_cnt += 1
+                if es_cnt > 3:
+                    print('\nEarly stopping')
+                    print('Max f1: %.3f, em: %.3f, epoch: %d' % (max_f1, max_em, max_ep))
+                    break
+                else: 
+                    # Learning rate decay exponentially
+                    print('\nLower learning rate from %f to %f (%d/3)' % (
+                        params['learning_rate'], params['learning_rate'] / 2, es_cnt))
+                    params['learning_rate'] /= 2
             else:
-                max_ep = max_ep if max_em > em else epoch_idx 
+                es_cnt = 0
+                max_ep = max_ep if max_em > em else (epoch_idx + 1)
                 max_em = max_em if max_em > em else em 
                 max_f1 = max_f1 if max_f1 > f1 else f1
                 print('Max f1: %.3f, em: %.3f, epoch: %d' % (max_f1, max_em, max_ep))
@@ -81,10 +90,10 @@ def run(model, params, train_dataset, dev_dataset, idx2word):
 
 
 def sample_parameters(params):
-    params['learning_rate'] = float('{0:.5f}'.format(random.randint(1, 100) * 1e-4))
+    params['learning_rate'] = float('{0:.5f}'.format(random.randint(1, 1000) * 1e-5))
     # params['dim_rnn_cell'] = random.randint(4, 10) * 10 
-    params['batch_size'] = random.randint(1, 12) * 8
-    params['dim_perspective'] = random.randint(1, 5) * 5
+    # params['batch_size'] = random.randint(1, 12) * 8
+    # params['dim_perspective'] = random.randint(1, 5) * 5
     return params
 
 
@@ -126,7 +135,7 @@ def main(_):
     """
     # Preprocess dataset
     word2idx, idx2word, c_maxlen, q_maxlen = build_dict(train_dataset, saved_params)
-    pretrained_glove, word2idx = load_glove(word2idx, saved_params)
+    pretrained_glove, word2idx, idx2word = load_glove(word2idx, saved_params)
     if saved_params['context_maxlen'] > 0: 
         c_maxlen = saved_params['context_maxlen']
 

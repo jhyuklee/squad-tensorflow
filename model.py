@@ -20,7 +20,6 @@ class Basic(object):
         self.model = params['model']
 
         # hyper parameters
-        self.learning_rate = params['learning_rate']
         self.decay_rate = params['decay_rate']
         self.decay_step = params['decay_step']
         self.max_grad_norm = params['max_grad_norm']
@@ -48,12 +47,10 @@ class Basic(object):
         self.rnn_dropout = tf.placeholder(tf.float32)
         self.hidden_dropout = tf.placeholder(tf.float32)
         self.embed_dropout = tf.placeholder(tf.float32)
+        self.learning_rate = tf.placeholder(tf.float32)
 
         # model settings
         self.global_step = tf.Variable(0, name="step", trainable=False)
-        self.learning_rate = tf.train.exponential_decay(
-                 self.learning_rate, self.global_step,
-                 self.decay_step, self.decay_rate, staircase=True)
         self.optimizer = tf.train.AdamOptimizer(self.learning_rate)
         self.initialize_embedding(self.initializer)
 

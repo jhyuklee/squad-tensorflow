@@ -38,11 +38,11 @@ class QL_MPCM(MPCM):
                 embed_word = tf.nn.embedding_lookup(embedding_table, word_idx)
                 return embed_word
            
-            print('state passed', question_state[0])
-            print('zero state', cell.zero_state(batch_size, tf.float32))
+            # print('state passed', question_state[0])
+            # print('zero state', cell.zero_state(batch_size, tf.float32))
             zero_state = cell.zero_state(batch_size, tf.float32)
             outputs, state = tf.contrib.legacy_seq2seq.rnn_decoder(r_inputs, 
-                    zero_state, cell, loop_function)
+                    question_state[0], cell, loop_function)
             outputs_t = tf.reshape(tf.stack(outputs), [-1, self.dim_rnn_cell])
             pp_logits = tf.reshape(tf.matmul(outputs_t, weights) + biases,
                     [-1, max_length, self.voca_size])
@@ -59,13 +59,20 @@ class QL_MPCM(MPCM):
         score = tf.nn.sparse_softmax_cross_entropy_with_logits(
                 logits=pp_logits, labels=pp_sample)
         advantage = reward - baseline
-        policy_loss = tf.reduce_mean(tf.reduce_sum(tf.expand_dims(advantage, -1) * score))
+        self.policy_loss = tf.reduce_mean(tf.reduce_sum(tf.expand_dims(advantage, -1) * score))
+
+        # TODO: Bag Of Words Loss
+        question_bow = tf.reduce_sum(tf.one_hot(self.question, self.voca_size), axis=1)
+
+        bow_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
+                logits=pp_logits, labels=self.question)
+        # self.policy_loss += tf.reduce_mean(tf.reduce_sum(bow_loss))
         
         self.policy_params = [p for p in tf.trainable_variables()
                 if 'Paraphrase_Layer' in p.name]
         # print([p.name for p in self.policy_params])
         policy_grads, _ = tf.clip_by_global_norm(tf.gradients(
-            policy_loss, self.policy_params), self.max_grad_norm)
+            self.policy_loss, self.policy_params), self.max_grad_norm)
         optimize = self.optimizer.apply_gradients(zip(policy_grads, self.policy_params),
                 global_step=self.global_step)
         self.paraphrase_optimize.append(optimize)

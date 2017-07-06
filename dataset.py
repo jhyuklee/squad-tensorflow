@@ -42,24 +42,28 @@ def load_glove(dictionary, params):
     print('Glove Loading Done', elapsed_time, len(glove))
 
     pretrained_vectors = []
-    new_dict = {}
+    word2idx = {}
+    idx2word = {}
     unk_cnt = 0
     unknown_vector = np.random.uniform(-1, 1, params['dim_embed_word'])
-    new_dict['UNK'] = len(new_dict)
-    new_dict['PAD'] = len(new_dict)
+    word2idx['UNK'] = len(word2idx)
+    word2idx['PAD'] = len(word2idx)
+    idx2word[0] = 'UNK'
+    idx2word[1] = 'PAD'
     pretrained_vectors.append(unknown_vector)
     pretrained_vectors.append([0.0] * params['dim_embed_word'])
     for word, word_idx in sorted(dictionary.items(), key=operator.itemgetter(1)):
         if word in glove:
-            new_dict[word] = len(new_dict)
+            word2idx[word] = len(word2idx)
+            idx2word[len(word2idx)-1] = word
             pretrained_vectors.append(glove[word])
         else:
             unk_cnt += 1
 
-    print('apple:', new_dict['apple'], glove['apple'][:5])
+    print('apple:', word2idx['apple'], glove['apple'][:5])
     print('Pretrained vectors', np.asarray(pretrained_vectors).shape, 'unknown', unk_cnt)
-    print('Dictionary Change', len(dictionary), 'to', len(new_dict))
-    return np.asarray(pretrained_vectors).astype(np.float32), new_dict
+    print('Dictionary Change', len(dictionary), 'to', len(word2idx), len(idx2word))
+    return np.asarray(pretrained_vectors).astype(np.float32), word2idx, idx2word 
 
 
 def tokenize(words):
