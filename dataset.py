@@ -141,9 +141,20 @@ def build_dict(dataset, params):
     
     print('Top 20 frequent words among', len(counter))
     print([(k, counter[k]) for k in sorted(counter, key=counter.get, reverse=True)[:20]])
+    tester = sorted(counter, key=counter.get, reverse=True)[70000]
+    print(tester, counter[tester])
+
+    # TODO: normalize digits / non alphabetics
+    digit = 0
+    alpha = 0
     for key, value in sorted(counter.items()):
         dictionary[key] = len(dictionary)
         reverse_dictionary[dictionary[key]] = key
+        digit = digit + 1 if key.isdigit() else digit
+        alpha = alpha + 1 if key.isalnum() else alpha
+    print('digit cnt', digit)
+    print('alpha cnt', alpha)
+
     print('Dictionary size', len(dictionary))
     print([(k, dictionary[k]) for k in sorted(dictionary, key=dictionary.get)[:20]])
     print('Maxlen of C:%d, Q:%d, A:%d' % (context_maxlen, question_maxlen, answer_maxlen))

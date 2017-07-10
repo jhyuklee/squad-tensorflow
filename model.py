@@ -19,12 +19,8 @@ class Basic(object):
         self.params = params
         self.model = params['model']
 
-        # hyper parameters
-        self.decay_rate = params['decay_rate']
-        self.decay_step = params['decay_step']
-        self.max_grad_norm = params['max_grad_norm']
-
         # rnn parameters
+        self.max_grad_norm = params['max_grad_norm']
         self.context_maxlen = params['context_maxlen']
         self.question_maxlen = params['question_maxlen']
         self.rnn_layer = params['rnn_layer']
