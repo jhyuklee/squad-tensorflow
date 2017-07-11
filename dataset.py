@@ -7,6 +7,8 @@ import string
 import operator
 import collections
 import numpy as np
+import nltk
+nltk.download('punkt')
 
 
 def read_data(dataset_path, version):
@@ -23,8 +25,6 @@ def read_data(dataset_path, version):
 def load_glove(dictionary, params):
     print('Glove Loading...')
     start_time = datetime.datetime.now()
-    assert str(params['dim_embed_word']) in params['glove_path'], \
-            'Pretrained dimension does not match!'
     glove = {}
     glove_path = os.path.expanduser(params['glove_path'])
     with open(glove_path, 'r', encoding='utf-8', errors='ignore') as f:
@@ -61,7 +61,7 @@ def load_glove(dictionary, params):
             unk_cnt += 1
 
     print('apple:', word2idx['apple'], glove['apple'][:5])
-    print('Pretrained vectors', np.asarray(pretrained_vectors).shape, 'unknown', unk_cnt)
+    print('Pretrained vectors', np.asarray(pretrained_vectors).shape, 'unk', unk_cnt)
     print('Dictionary Change', len(dictionary), 'to', len(word2idx), len(idx2word))
     return np.asarray(pretrained_vectors).astype(np.float32), word2idx, idx2word 
 
@@ -80,8 +80,9 @@ def tokenize(words):
     def lower(text):
         return text.lower()
     
-    return white_space_fix(remove_articles(remove_punc(lower(words)))).split(' ')
-
+    # result = white_space_fix(remove_articles(remove_punc(lower(words)))).split(' ')
+    result = nltk.word_tokenize(words)
+    return result
 
 def word2idx(words, dictionary, max_length=None):
     result_idx = []
@@ -144,16 +145,20 @@ def build_dict(dataset, params):
     tester = sorted(counter, key=counter.get, reverse=True)[70000]
     print(tester, counter[tester])
 
-    # TODO: normalize digits / non alphabetics
     digit = 0
-    alpha = 0
+    non_alnum = 0
     for key, value in sorted(counter.items()):
+        if key.isdigit(): # TODO: Performance check
+            key = 'DIGIT'
+            digit += 1
+        if not key.isdigit() and not key.isalnum():
+            non_alnum += 1
+            key = 'UNK'
+
         dictionary[key] = len(dictionary)
         reverse_dictionary[dictionary[key]] = key
-        digit = digit + 1 if key.isdigit() else digit
-        alpha = alpha + 1 if key.isalnum() else alpha
     print('digit cnt', digit)
-    print('alpha cnt', alpha)
+    print('non alpha cnt', non_alnum)
 
     print('Dictionary size', len(dictionary))
     print([(k, dictionary[k]) for k in sorted(dictionary, key=dictionary.get)[:20]])
@@ -171,6 +176,7 @@ def preprocess(dataset, dictionary, c_maxlen, q_maxlen):
             context = paragraph['context']
             cqa_item = {}
             cqa_item['c_raw'] = tokenize(context)
+            cqa_item['c_real'] = context
             cqa_item['c'], cqa_item['c_len'] = word2idx(context, dictionary, c_maxlen)
             if len(cqa_item['c_raw']) > c_maxlen: continue
             if d_idx == 0 and p_idx == 0:

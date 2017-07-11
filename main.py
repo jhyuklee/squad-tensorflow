@@ -39,10 +39,11 @@ flags.DEFINE_boolean("sample_params", False, "True to sample parameters")
 flags.DEFINE_string("model", "m", "b: basic, m: mpcm, q: ql_mpcm")
 flags.DEFINE_string('train_path', './data/train-v1.1.json', 'Training dataset path')
 flags.DEFINE_string('dev_path', './data/dev-v1.1.json',  'Development dataset path')
-flags.DEFINE_string('pred_path', './result/dev-v1.1-pred.json', 'Prediction output path')
+flags.DEFINE_string('pred_path', './result/dev-v1.1-pred.json', 'Pred output path')
 flags.DEFINE_string('glove_path', \
-        '~/common/glove/glove.840B.'+ str(tf.app.flags.FLAGS.dim_embed_word) +'d.txt', 'embed path')
-flags.DEFINE_string('validation_path', './result/validation.txt', 'Validation file path')
+        ('~/common/glove/glove.840B.'+ str(tf.app.flags.FLAGS.dim_embed_word) +
+        'd.txt'), 'embed path')
+flags.DEFINE_string('validation_path', './result/validation.txt', 'Validation path')
 flags.DEFINE_string('checkpoint_dir', './result/ckpt/', 'Checkpoint directory')
 FLAGS = flags.FLAGS
 

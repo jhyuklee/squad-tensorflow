@@ -148,7 +148,7 @@ class Basic(object):
                                               dtype=tf.float32)
 
     def save_settings(self):
-        print('model variables', [var.name for var in tf.trainable_variables()])
+        print('trainable variables', [var.name for var in tf.trainable_variables()])
         total_parameters = 0
         for var in tf.trainable_variables():
             shape = var.get_shape()
@@ -159,7 +159,7 @@ class Basic(object):
             total_parameters += variable_parameters
         print('Total parameters', total_parameters)
         
-        model_vars = [v for v in tf.global_variables()]
+        model_vars = [v for v in tf.trainable_variables()]
         self.saver = tf.train.Saver(model_vars)
         self.merged_summary = tf.summary.merge_all()
         # self.graph_writer = tf.summary.FileWriter(self.checkpoint_dir, self.session.graph)
