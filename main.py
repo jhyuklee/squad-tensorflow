@@ -157,16 +157,16 @@ def main(_):
         pprint.PrettyPrinter().pprint(params)
 
         # Make model and run experiment
-        if params['model'] == 'm':
+        params['model'] += ('_%d' % model_idx)
+        if 'm' in params['model']:
             my_model = MPCM(params, initializer=[pretrained_glove, word2idx])
-        elif params['model'] == 'q':
+        elif 'q' in params['model']:
             my_model = QL_MPCM(params, initializer=[pretrained_glove, word2idx])
-        elif params['model'] == 'b':
+        elif 'b' in params['model']:
             my_model = Basic(params, initializer=[pretrained_glove, word2idx])
         else:
             assert False, "Check your version %s" % params['model']
        
-        params['model'] += ('_%d' % model_idx)
         f1, em, max_ep = run(my_model, params, train_dataset, dev_dataset, idx2word)
         write_result(params, f1, em, max_ep)
 
