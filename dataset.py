@@ -80,8 +80,8 @@ def tokenize(words):
     def lower(text):
         return text.lower()
     
-    # result = white_space_fix(remove_articles(remove_punc(lower(words)))).split(' ')
-    result = nltk.word_tokenize(words)
+    result = [token.replace("''", '"').replace("``", '"') 
+            for token in nltk.word_tokenize(words)]
     return result
 
 def word2idx(words, dictionary, max_length=None):
@@ -148,12 +148,10 @@ def build_dict(dataset, params):
     digit = 0
     non_alnum = 0
     for key, value in sorted(counter.items()):
-        if key.isdigit(): # TODO: Performance check
-            key = 'DIGIT'
+        if key.isdigit(): # TODO: set to DIGIT
             digit += 1
         if not key.isdigit() and not key.isalnum():
             non_alnum += 1
-            key = 'UNK'
 
         dictionary[key] = len(dictionary)
         reverse_dictionary[dictionary[key]] = key
