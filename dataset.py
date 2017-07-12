@@ -67,19 +67,6 @@ def load_glove(dictionary, params):
 
 
 def tokenize(words):
-    def remove_articles(text):
-        return re.sub(r'\b(a|an|the)\b', ' ', text)
-
-    def white_space_fix(text):
-        return ' '.join(text.split())
-
-    def remove_punc(text):
-        exclude = set(string.punctuation)
-        return ''.join(ch for ch in text if ch not in exclude)
-
-    def lower(text):
-        return text.lower()
-    
     result = [token.replace("''", '"').replace("``", '"') 
             for token in nltk.word_tokenize(words)]
     return result
