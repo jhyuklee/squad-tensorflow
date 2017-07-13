@@ -17,12 +17,13 @@ from run import train, test
 flags = tf.app.flags
 flags.DEFINE_integer('train_epoch', 100, 'Training epoch')
 flags.DEFINE_integer('test_epoch', 1, 'Test for every n training epoch')
-flags.DEFINE_integer("batch_size", 32, "Size of batch (32)")
+flags.DEFINE_integer("batch_size", 16, "Size of batch (32)")
 flags.DEFINE_integer("dim_perspective", 20, "Maximum number of perspective (20)")
 flags.DEFINE_integer("dim_embed_word", 300, "Dimension of word embedding (300)")
 flags.DEFINE_integer("dim_rnn_cell", 100, "Dimension of RNN cell (100)")
 flags.DEFINE_integer("dim_hidden", 100, "Dimension of hidden layer")
 flags.DEFINE_integer("num_paraphrase", 1, "Maximum number of question paraphrasing")
+flags.DEFINE_integer("num_action", 4, "Number of action space.")
 flags.DEFINE_integer("rnn_layer", 1, "Layer number of RNN ")
 flags.DEFINE_integer("context_maxlen", 0, "Predefined context max length")
 flags.DEFINE_integer("validation_cnt", 100, "Number of model validation")
@@ -41,7 +42,7 @@ flags.DEFINE_string('train_path', './data/train-v1.1.json', 'Training dataset pa
 flags.DEFINE_string('dev_path', './data/dev-v1.1.json',  'Development dataset path')
 flags.DEFINE_string('pred_path', './result/dev-v1.1-pred.json', 'Pred output path')
 flags.DEFINE_string('glove_path', \
-        ('~/common/glove/glove.840B.'+ str(tf.app.flags.FLAGS.dim_embed_word) +
+        ('~/common/glove/glove.6B.'+ str(tf.app.flags.FLAGS.dim_embed_word) +
         'd.txt'), 'embed path')
 flags.DEFINE_string('validation_path', './result/validation.txt', 'Validation path')
 flags.DEFINE_string('checkpoint_dir', './result/ckpt/', 'Checkpoint directory')
