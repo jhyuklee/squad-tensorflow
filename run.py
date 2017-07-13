@@ -66,12 +66,45 @@ def train(model, dataset, epoch, idx2word, params):
 
                         idx2action = {
                                 0: 'NONE',
-                                1: 'INS',
-                                2: 'DEL',
+                                1: 'DEL',
+                                2: 'INS',
                                 3: 'SUB'
                         }
-                        # TODO: paraphrase question
-                        feed_dict[model.paraphrases[pp_idx]] = batch_question
+                        def paraphrase_question(sentence, length, actions):
+                            new_sentence = []
+                            itr = 0
+                            for idx, act in enumerate(actions):
+                                if act == 0: # None
+                                    new_sentence.append(sentence[itr])
+                                    itr += 1
+                                elif act == 1: # DEL
+                                    itr += 1
+                                elif act == 2: # INS, TODO: match context
+                                    new_sentence.append(sentence[itr])
+                                    itr += 1
+                                elif act == 3: # SUB, TODO: match context
+                                    new_sentence.append(sentence[itr])
+                                    itr += 1
+                                else:
+                                    assert False, 'Wrong action %d'% act
+                            
+                            while len(new_sentence) != len(sentence):
+                                new_sentence.append(1) # PAD
+
+                            # TODO: length break!
+                            # print('Original', sentence)
+                            # print('Rules', ' '.join(
+                            #     [idx2action[idx] for idx in actions]))
+                            # print('Paraph', new_sentence)
+                            return new_sentence
+                        
+                        paraphrased_q = []
+                        for org_q, org_q_len, action in zip(batch_question, 
+                                batch_question_len, action_sample):
+                            paraphrased_q.append(paraphrase_question(
+                                org_q, org_q_len, action))
+                        feed_dict[model.paraphrases[pp_idx]] = np.array(paraphrased_q)
+                                            
                         ps_logits, pe_logits = sess.run(
                                 model.pp_logits[pp_idx], feed_dict=feed_dict)
 
