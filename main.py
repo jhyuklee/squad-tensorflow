@@ -39,6 +39,7 @@ flags.DEFINE_boolean("sample_params", False, "True to sample parameters")
 flags.DEFINE_boolean("load", False, "True to load model")
 flags.DEFINE_boolean("load_mpcm_only", False, "True to load only mpcm variables")
 flags.DEFINE_boolean("train", True, "True to train model")
+flags.DEFINE_boolean("train_pp_only", True, "True to train paraphrase only")
 flags.DEFINE_string("load_name", "m200_0", "load model name")
 flags.DEFINE_string("model_name", "none", "model name for building")
 flags.DEFINE_string("mode", "m", "b: basic, m: mpcm, q: ql_mpcm")
@@ -181,7 +182,6 @@ def main(_):
             assert False, "Check your version %s" % params['mode']
 
         if params['load']:
-            my_model.model = params['load_name']
             my_model.load(params['checkpoint_dir'])
        
         f1, em, max_ep = run(my_model, params, train_dataset, dev_dataset, idx2word)
