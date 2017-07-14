@@ -17,7 +17,7 @@ class Basic(object):
         config.gpu_options.allow_growth = True
         self.session = tf.Session(config=config)
         self.params = params
-        self.model = params['model']
+        self.model_name = params['model_name']
 
         # rnn parameters
         self.max_grad_norm = params['max_grad_norm']
@@ -155,26 +155,31 @@ class Basic(object):
             variable_parameters = 1
             for dim in shape:
                 variable_parameters *= dim.value
-            print(var.name, 'has %d parameters with %s shape' % (variable_parameters, shape))
+            print(var.name, 'has %d parameters with %s shape' % (
+                variable_parameters, shape))
             total_parameters += variable_parameters
         print('Total parameters', total_parameters)
         
-        model_vars = [v for v in tf.trainable_variables()]
+        if self.params['load_mpcm_only']:
+            model_vars = [v for v in tf.trainable_variables()
+                    if 'Paraphrase_Layer' not in v.name]
+        else:
+            model_vars = [v for v in tf.trainable_variables()]
         self.saver = tf.train.Saver(model_vars)
         self.merged_summary = tf.summary.merge_all()
-        # self.graph_writer = tf.summary.FileWriter(self.checkpoint_dir, self.session.graph)
+        # self.graph_writer = tf.summary.FileWriter(self.checkpoint_dir,self.session.graph)
 
     @staticmethod
     def reset_graph():
         tf.reset_default_graph()
 
     def save(self, checkpoint_dir):
-        file_name = "%s.model" % self.model
+        file_name = "%s.model" % self.model_name
         self.saver.save(self.session, os.path.join(checkpoint_dir, file_name))
         print("Model saved", file_name)
 
     def load(self, checkpoint_dir):
-        file_name = "%s.model" % self.model
+        file_name = "%s.model" % self.model_name
         self.saver.restore(self.session, os.path.join(checkpoint_dir, file_name))
         print("Model loaded", file_name)
 

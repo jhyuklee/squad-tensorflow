@@ -17,7 +17,7 @@ from run import train, test
 flags = tf.app.flags
 flags.DEFINE_integer('train_epoch', 100, 'Training epoch')
 flags.DEFINE_integer('test_epoch', 1, 'Test for every n training epoch')
-flags.DEFINE_integer("batch_size", 16, "Size of batch (32)")
+flags.DEFINE_integer("batch_size", 32, "Size of batch (32)")
 flags.DEFINE_integer("dim_perspective", 20, "Maximum number of perspective (20)")
 flags.DEFINE_integer("dim_embed_word", 300, "Dimension of word embedding (300)")
 flags.DEFINE_integer("dim_rnn_cell", 100, "Dimension of RNN cell (100)")
@@ -33,11 +33,15 @@ flags.DEFINE_float("embed_dropout", 0.8, "Dropout rate of embedding layer")
 flags.DEFINE_float("learning_rate", 0.00162, "Initial learning rate of the optimzier")
 flags.DEFINE_float("max_grad_norm", 5.0, "Maximum gradient to clip")
 flags.DEFINE_boolean("embed_trainable", False, "True to optimize embedded words")
-flags.DEFINE_boolean("test", False, "True to run only iteration 5")
 flags.DEFINE_boolean("debug", False, "True to show debug message")
 flags.DEFINE_boolean("save", False, "True to save model after testing")
 flags.DEFINE_boolean("sample_params", False, "True to sample parameters")
-flags.DEFINE_string("model", "m", "b: basic, m: mpcm, q: ql_mpcm")
+flags.DEFINE_boolean("load", False, "True to load model")
+flags.DEFINE_boolean("load_mpcm_only", False, "True to load only mpcm variables")
+flags.DEFINE_boolean("train", True, "True to train model")
+flags.DEFINE_string("load_name", "m200_0", "load model name")
+flags.DEFINE_string("model_name", "none", "model name for building")
+flags.DEFINE_string("mode", "m", "b: basic, m: mpcm, q: ql_mpcm")
 flags.DEFINE_string('train_path', './data/train-v1.1.json', 'Training dataset path')
 flags.DEFINE_string('dev_path', './data/dev-v1.1.json',  'Development dataset path')
 flags.DEFINE_string('pred_path', './result/dev-v1.1-pred.json', 'Pred output path')
@@ -56,11 +60,12 @@ def run(model, params, train_dataset, dev_dataset, idx2word):
     init_lr = params['learning_rate']
 
     for epoch_idx in range(train_epoch):
-        start_time = datetime.datetime.now()
-        print("\n[Epoch %d]" % (epoch_idx + 1))
-        train(model, train_dataset, epoch_idx + 1, idx2word, params)
-        elapsed_time = datetime.datetime.now() - start_time
-        print('Epoch %d Done in %s' % (epoch_idx + 1, elapsed_time))
+        if params['train']:
+            start_time = datetime.datetime.now()
+            print("\n[Epoch %d]" % (epoch_idx + 1))
+            train(model, train_dataset, epoch_idx + 1, idx2word, params)
+            elapsed_time = datetime.datetime.now() - start_time
+            print('Epoch %d Done in %s' % (epoch_idx + 1, elapsed_time))
         
         if (epoch_idx + 1) % test_epoch == 0:
             f1, em, loss = test(model, dev_dataset, params)
@@ -102,7 +107,7 @@ def sample_parameters(params):
 
 def write_result(params, f1, em, ep):
     f = open(params['validation_path'], 'a')
-    f.write('Model %s\n' % params['model'])
+    f.write('Model %s\n' % params['model_name'])
     f.write('learning_rate / dim_rnn_cell / batch_size / ' + 
             'dim_perspective / dim_embed_word / context_maxlen\n')
     f.write('[%f / %d / %d / %d / %d / %d]\n' % (params['learning_rate'], 
@@ -155,19 +160,29 @@ def main(_):
             params = sample_parameters(copy.deepcopy(saved_params))
         else:
             params = copy.deepcopy(saved_params)
+
+        # Model name settings
+        if params['load']:
+            params['model_name'] = params['load_name']
+        else:
+            ymdhm = datetime.datetime.now().strftime('%Y%m%d%H%M') 
+            params['model_name'] = '%s%s_%d' % (params['mode'], ymdhm, model_idx)
+        
         print('\nModel_%d paramter set' % (model_idx))
         pprint.PrettyPrinter().pprint(params)
 
-        # Make model and run experiment
-        params['model'] += ('_%d' % model_idx)
-        if 'm' in params['model']:
+        if 'm' in params['mode']:
             my_model = MPCM(params, initializer=[pretrained_glove, word2idx])
-        elif 'q' in params['model']:
+        elif 'q' in params['mode']:
             my_model = QL_MPCM(params, initializer=[pretrained_glove, word2idx])
-        elif 'b' in params['model']:
+        elif 'b' in params['mode']:
             my_model = Basic(params, initializer=[pretrained_glove, word2idx])
         else:
-            assert False, "Check your version %s" % params['model']
+            assert False, "Check your version %s" % params['mode']
+
+        if params['load']:
+            my_model.model = params['load_name']
+            my_model.load(params['checkpoint_dir'])
        
         f1, em, max_ep = run(my_model, params, train_dataset, dev_dataset, idx2word)
         write_result(params, f1, em, max_ep)

@@ -86,10 +86,12 @@ class QL_MPCM(MPCM):
         score = tf.nn.sparse_softmax_cross_entropy_with_logits(
                 logits=action_logits, labels=action_sample)
         advantage = reward - baseline
-        policy_loss = tf.reduce_mean(tf.reduce_sum(tf.expand_dims(advantage, -1) * score))
+        policy_loss = tf.reduce_mean(
+                tf.reduce_sum(tf.expand_dims(advantage, -1) * score))
         
         self.policy_params = [p for p in tf.trainable_variables()
-                if 'Paraphrase_Layer' in p.name]
+                if (('Paraphrase_Layer' in p.name)
+                or ('Representation_Layer' in p.name))]
         # print([p.name for p in self.policy_params])
         policy_grads, _ = tf.clip_by_global_norm(tf.gradients(
             policy_loss, self.policy_params), self.max_grad_norm)
@@ -113,7 +115,7 @@ class QL_MPCM(MPCM):
         for pp_idx in range(self.num_paraphrase + 1):
             if pp_idx > 0:
                 action_sample, action_logits = self.paraphrase_layer(
-                        question_rep, None,
+                        question_rep, c_state,
                         self.question_len, self.question_maxlen, reuse=(pp_idx>1))
                 print('# Paraphrase_layer %d' % (pp_idx), action_sample)
                 paraphrased = self.paraphrases[pp_idx-1]
@@ -129,7 +131,7 @@ class QL_MPCM(MPCM):
                     trainable=self.embed_trainable,
                     reuse=True, scope='Word'), self.embed_dropout)
 
-            question_rep, q_state = self.representation_layer(question_embed, 
+            question_rep, _ = self.representation_layer(question_embed, 
                     self.question_len, self.question_maxlen,
                     scope='Question', reuse=(pp_idx>0))
             
@@ -137,7 +139,8 @@ class QL_MPCM(MPCM):
                     reuse=(pp_idx>0))
             print('# Filter_layer', context_filtered)
           
-            context_rep, _ = self.representation_layer(context_filtered, self.context_len,
+            context_rep, c_state = self.representation_layer(context_filtered, 
+                    self.context_len,
                     self.context_maxlen, scope='Context', reuse=(pp_idx>0))
             print('# Representation_layer', context_rep, question_rep)
 

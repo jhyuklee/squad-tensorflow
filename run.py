@@ -58,7 +58,7 @@ def train(model, dataset, epoch, idx2word, params):
                         model.learning_rate: params['learning_rate']}
                 _, loss = sess.run([model.optimize, model.loss], feed_dict=feed_dict)
 
-                if 'q' in params['model']:
+                if 'q' in params['mode']:
                     for pp_idx in range(params['num_paraphrase']):
                         action_sample = sess.run(
                                 model.action_samples[pp_idx],
@@ -201,9 +201,6 @@ def train(model, dataset, epoch, idx2word, params):
                     sys.stdout.write(_progress)
                     sys.stdout.flush()
                     
-                    if dataset_idx / 5 == 5 and params['test']:
-                        sys.exit()
-
                     total_f1 += f1 / len(predictions)
                     total_em += em / len(predictions)
                     total_loss += loss
