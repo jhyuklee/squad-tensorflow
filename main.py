@@ -10,6 +10,7 @@ import copy
 from model import Basic
 from mpcm import MPCM
 from ql_mpcm import QL_MPCM
+from bidaf import BiDAF
 from time import gmtime, strftime
 from dataset import read_data, build_dict, load_glove, preprocess
 from run import train, test
@@ -36,7 +37,7 @@ flags.DEFINE_boolean("test", False, "True to run only iteration 5")
 flags.DEFINE_boolean("debug", False, "True to show debug message")
 flags.DEFINE_boolean("save", False, "True to save model after testing")
 flags.DEFINE_boolean("sample_params", False, "True to sample parameters")
-flags.DEFINE_string("model", "m", "b: basic, m: mpcm, q: ql_mpcm")
+flags.DEFINE_string("model", "bidaf", "b: basic, m: mpcm, q: ql_mpcm, bidaf: bidaf")
 flags.DEFINE_string('train_path', './data/train-v1.1.json', 'Training dataset path')
 flags.DEFINE_string('dev_path', './data/dev-v1.1.json',  'Development dataset path')
 flags.DEFINE_string('pred_path', './result/dev-v1.1-pred.json', 'Pred output path')

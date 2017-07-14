@@ -224,16 +224,7 @@ class MPCM(Basic):
             context_filtered = self.filter_layer(context_embed, question_embed)
             # context_filtered = dropout(context_filtered, self.embed_dropout)
             print('# Filter_layer', context_filtered)
-          
-            """
-            # For skipping matching layer
-            aggregates = context_filtered
-            """
-            """
-            # For skipping rep layer
-            self.dim_rnn_cell = int(self.dim_embed_word / 2)
-            aggregates = self.matching_layer(context_filtered, question_embed)
-            """
+            
             context_rep, _ = self.representation_layer(context_filtered, 
                     self.context_len, self.context_maxlen, scope='Context')
             # context_rep = dropout(context_rep, self.embed_dropout)
