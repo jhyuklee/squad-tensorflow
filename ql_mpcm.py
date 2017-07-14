@@ -8,17 +8,23 @@ from ops import *
 class QL_MPCM(MPCM):
     def __init__(self, params, initializer):
         self.num_paraphrase = params['num_paraphrase']
+        self.num_action = params['num_action']
         self.rewards = []
         self.baselines = []
         self.paraphrases = []
-        self.paraphrase_logits = []
-        self.paraphrase_optimize = []
+        self.pp_logits = []
+        self.pp_loss = []
+        self.pp_optimize = []
+        self.action_samples = []
         for _ in range(self.num_paraphrase):
             self.rewards.append(tf.placeholder(tf.float32, [None]))
             self.baselines.append(tf.placeholder(tf.float32, [None]))
+            self.paraphrases.append(tf.placeholder(tf.int32, 
+                [None, params['question_maxlen']]))
         super(QL_MPCM, self).__init__(params, initializer)
-
-    def paraphrase_layer(self, question_state, length, max_length, reuse=None):
+    
+    # deprecated
+    def test_paraphrase_layer(self, question_state, length, max_length, reuse=None):
         with tf.variable_scope('Word', reuse=True):
             embedding_table = tf.get_variable("embed", dtype=tf.float32)
         
@@ -50,32 +56,49 @@ class QL_MPCM(MPCM):
             # Not argamx but softmax approximation?
             pp_sample = tf.argmax(pp_logits, 2)
             return pp_sample, pp_logits
+    
+    def paraphrase_layer(self, question, ref_state, length, max_length, reuse=None):
+        with tf.variable_scope('Paraphrase_Layer', reuse=reuse) as scope:
+            batch_size = tf.shape(length)[0]
+            cell = lstm_cell(self.dim_rnn_cell, self.rnn_layer, self.rnn_dropout)
+            r_inputs = rnn_reshape(question, self.dim_rnn_cell * 2, max_length)
+            
+            weights = tf.get_variable('out_w', [self.dim_rnn_cell, self.num_action],
+                                      initializer=tf.random_normal_initializer())
+            biases = tf.get_variable('out_b', [self.num_action],
+                                     initializer=tf.constant_initializer(0.0))
 
-    def optimize_paraphrased(self, pp_sample, pp_logits, paraphrase_cnt):
+            zero_state = cell.zero_state(batch_size, tf.float32) # use ref_state[0]
+            outputs, state = tf.contrib.legacy_seq2seq.rnn_decoder(
+                    r_inputs, zero_state, cell)
+            outputs_t = tf.reshape(tf.stack(outputs), [-1, self.dim_rnn_cell])
+            action_logits = tf.reshape(tf.matmul(outputs_t, weights) + biases,
+                    [-1, max_length, self.num_action])
+
+            action_sample = tf.argmax(action_logits, 2)
+            return action_sample, action_logits
+
+    def optimize_pp(self, action_sample, action_logits, paraphrase_cnt):
         print("# Calculating Paraphrased Loss\n")
-        reward = self.rewards[paraphrase_cnt - 1]
-        baseline = self.baselines[paraphrase_cnt - 1]
+        reward = self.rewards[paraphrase_cnt]
+        baseline = self.baselines[paraphrase_cnt]
 
         score = tf.nn.sparse_softmax_cross_entropy_with_logits(
-                logits=pp_logits, labels=pp_sample)
+                logits=action_logits, labels=action_sample)
         advantage = reward - baseline
-        self.policy_loss = tf.reduce_mean(tf.reduce_sum(tf.expand_dims(advantage, -1) * score))
-
-        # TODO: Bag Of Words Loss
-        question_bow = tf.reduce_sum(tf.one_hot(self.question, self.voca_size), axis=1)
-
-        bow_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
-                logits=pp_logits, labels=self.question)
-        # self.policy_loss += tf.reduce_mean(tf.reduce_sum(bow_loss))
+        policy_loss = tf.reduce_mean(
+                tf.reduce_sum(tf.expand_dims(advantage, -1) * score))
         
         self.policy_params = [p for p in tf.trainable_variables()
-                if 'Paraphrase_Layer' in p.name]
+                if (('Paraphrase_Layer' in p.name)
+                or ('Representation_Layer' in p.name))]
         # print([p.name for p in self.policy_params])
         policy_grads, _ = tf.clip_by_global_norm(tf.gradients(
-            self.policy_loss, self.policy_params), self.max_grad_norm)
+            policy_loss, self.policy_params), self.max_grad_norm)
         optimize = self.optimizer.apply_gradients(zip(policy_grads, self.policy_params),
                 global_step=self.global_step)
-        self.paraphrase_optimize.append(optimize)
+        self.pp_optimize.append(optimize)
+        self.pp_loss.append(policy_loss)
 
     def build_model(self):
         print("Question Learning Model")
@@ -91,10 +114,12 @@ class QL_MPCM(MPCM):
         end_logits = []
         for pp_idx in range(self.num_paraphrase + 1):
             if pp_idx > 0:
-                paraphrased, pp_logits = self.paraphrase_layer(q_state, 
+                action_sample, action_logits = self.paraphrase_layer(
+                        question_rep, c_state,
                         self.question_len, self.question_maxlen, reuse=(pp_idx>1))
-                self.paraphrases.append(paraphrased)
-                print('# Paraphrase_layer %d' % (pp_idx), paraphrased)
+                print('# Paraphrase_layer %d' % (pp_idx), action_sample)
+                paraphrased = self.paraphrases[pp_idx-1]
+                self.action_samples.append(action_sample)
             else:
                 paraphrased = self.question
             
@@ -106,14 +131,16 @@ class QL_MPCM(MPCM):
                     trainable=self.embed_trainable,
                     reuse=True, scope='Word'), self.embed_dropout)
 
-            question_rep, q_state = self.representation_layer(question_embed, 
+            question_rep, _ = self.representation_layer(question_embed, 
                     self.question_len, self.question_maxlen,
                     scope='Question', reuse=(pp_idx>0))
             
-            context_filtered = self.filter_layer(context_embed, question_embed, reuse=(pp_idx>0))
+            context_filtered = self.filter_layer(context_embed, question_embed, 
+                    reuse=(pp_idx>0))
             print('# Filter_layer', context_filtered)
           
-            context_rep, _ = self.representation_layer(context_filtered, self.context_len,
+            context_rep, c_state = self.representation_layer(context_filtered, 
+                    self.context_len,
                     self.context_maxlen, scope='Context', reuse=(pp_idx>0))
             print('# Representation_layer', context_rep, question_rep)
 
@@ -128,8 +155,8 @@ class QL_MPCM(MPCM):
             print('# Prediction_layer', sl, el)
 
             if pp_idx > 0:
-                self.paraphrase_logits.append([sl, el])
-                self.optimize_paraphrased(paraphrased, pp_logits, pp_idx)
+                self.pp_logits.append([sl, el])
+                self.optimize_pp(action_sample, action_logits, pp_idx-1)
             else:
                 self.start_logits, self.end_logits = [sl, el]
                 general_params = [p for p in tf.trainable_variables() 

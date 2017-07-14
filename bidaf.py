@@ -1,28 +1,120 @@
 import tensorflow as tf
 import sys
 
+from tensorflow.contrib.rnn import BasicLSTMCell
+from BiDAF_ops.my.tensorflow.nn import softsel, get_logits, highway_network
+from BiDAF_ops.my.tensorflow.rnn import bidirectional_dynamic_rnn
+from BiDAF_ops.my.tensorflow.rnn_cell import SwitchableDropoutWrapper, AttentionCell
 from model import Basic
 from ops import *
 
- 
+
 class BiDAF(Basic):
-    def __init__(self, params, initializer):
+    def __init__(self, params, initializer, is_train=True):
+        #self.dynamic_att = params['dynamic_att']
+        self.is_train = tf.constant(is_train, dtype=None)
+        self.share_lstm_weights = params['share_lstm_weights']
+        self.wd = params['wd']
+        self.logit_func = params['logit_func']
+        # Placeholders
+        self.x_mask = tf.placeholder('bool', [None, None, None], name='x_mask')
+        self.q_mask = tf.placeholder('bool', [None, None], name='q_mask')
+        
         super(BiDAF, self).__init__(params, initializer)
+        
 
     #def character_embedding_layer():
 
     #def word_embedding_layer():
+    
+    def contextual_embedding_layer(self, xx, qq, reuse=None):
+        ### contextual embedding layer
+        with tf.variable_scope("Contextual_Embedding_Layer", reuse=reuse) as scope:
+            print("xx : ", xx)
+            print("qq : ", qq)
+            (fw_u, bw_u), ((_, fw_u_f), (_, bw_u_f)) = bidirectional_dynamic_rnn(
+                    self.d_cell_fw, self.d_cell_bw, qq, 
+                    self.context_len, dtype='float', scope='u1')  # [N, J, d], [N, d]
+            print("fw_u : ", fw_u)
+            print("bw_u : ", bw_u)
+            u = tf.concat(axis=2, values=[fw_u, bw_u])
+            if self.share_lstm_weights:
+                tf.get_variable_scope().reuse_variables()
+                (fw_h, bw_h), _ = bidirectional_dynamic_rnn(self.cell_fw, self.cell_bw, \
+                                xx, self.context_len, dtype='float', scope='u1')  # [N, M, JX, 2d]
+                h = tf.concat(axis=3, values=[fw_h, bw_h])  # [N, M, JX, 2d]
+            else:
+                (fw_h, bw_h), _ = bidirectional_dynamic_rnn(self.cell_fw, self.cell_bw, \
+                                xx, self.context_len, dtype='float', scope='h1')  # [N, M, JX, 2d]
+                h = tf.concat(axis=3, values=[fw_h, bw_h])  # [N, M, JX, 2d]
+        return h, u
 
-    def contextual_embedding_layer():
+    
+    def attention_flow_layer(self, h, u, reuse=None):
+        with tf.variable_scope("Attention_Flow_Layer", reuse=reuse) as scope:
+            JX = tf.shape(h)[2]
+            M = tf.shape(h)[1]
+            JQ = tf.shape(u)[1]
+            
+            h_aug = tf.tile(tf.expand_dims(h, 3), [1, 1, 1, JQ, 1])
+            u_aug = tf.tile(tf.expand_dims(tf.expand_dims(u, 1), 1), [1, M, JX, 1, 1])
+            if h_mask is None:
+                hu_mask = None
+            else:
+                h_mask_aug = tf.tile(tf.expand_dims(h_mask, 3), [1, 1, 1, JQ])
+                u_mask_aug = tf.tile(tf.expand_dims(tf.expand_dims(u_mask, 1), 1), [1, M, JX, 1])
+                hu_mask = h_mask_aug & u_mask_aug
 
-    def attention_flow_layer():
+            u_logits = get_logits([h_aug, u_aug], None, True, wd=self.wd, mask=hu_mask,
+                                  is_train=self.is_train, func=self.logit_func, scope='u_logits')  # [N, M, JX, JQ]
+            u_a = softsel(u_aug, u_logits)  # [N, M, JX, d]
+            h_a = softsel(h, tf.reduce_max(u_logits, 3))  # [N, M, d]
+            h_a = tf.tile(tf.expand_dims(h_a, 2), [1, 1, JX, 1])
 
-    def modeling_layer():
+            if tensor_dict is not None:
+                a_u = tf.nn.softmax(u_logits)  # [N, M, JX, JQ]
+                a_h = tf.nn.softmax(tf.reduce_max(u_logits, 3))
+                tensor_dict['a_u'] = a_u
+                tensor_dict['a_h'] = a_h
+                variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=tf.get_variable_scope().name)
+                for var in variables:
+                    tensor_dict[var.name] = var
+        return G
+    
+    #def modeling_layer(self, g, reuse=None):
+            #first_cell_fw = d_cell2_fw
+            #second_cell_fw = d_cell3_fw
+            #first_cell_bw = d_cell2_bw
+            #second_cell_bw = d_cell3_bw
 
-    def ouput_layer():
+    #def ouput_layer():
         
     def build_model(self):
-        print("### Building BiDAF model ###")
+        print("### Building a BiDAF model ###")
+        self.cell_fw = BasicLSTMCell(self.dim_embed_word, state_is_tuple=True)
+        self.cell_bw = BasicLSTMCell(self.dim_embed_word, state_is_tuple=True)
+        self.d_cell_fw = SwitchableDropoutWrapper(self.cell_fw, self.is_train, \
+                    input_keep_prob=self.rnn_dropout)
+        self.d_cell_bw = SwitchableDropoutWrapper(self.cell_bw, self.is_train,\
+                    input_keep_prob=self.rnn_dropout)
+        self.cell2_fw = BasicLSTMCell(self.dim_embed_word, state_is_tuple=True)
+        self.cell2_bw = BasicLSTMCell(self.dim_embed_word, state_is_tuple=True)
+        self.d_cell2_fw = SwitchableDropoutWrapper(self.cell2_fw, self.is_train, \
+                    input_keep_prob=self.rnn_dropout)
+        self.d_cell2_bw = SwitchableDropoutWrapper(self.cell2_bw, self.is_train, \
+                    input_keep_prob=self.rnn_dropout)
+        self.cell3_fw = BasicLSTMCell(self.dim_embed_word, state_is_tuple=True)
+        self.cell3_bw = BasicLSTMCell(self.dim_embed_word, state_is_tuple=True)
+        self.d_cell3_fw = SwitchableDropoutWrapper(self.cell3_fw, self.is_train, \
+                    input_keep_prob=self.rnn_dropout)
+        self.d_cell3_bw = SwitchableDropoutWrapper(self.cell3_bw, self.is_train, \
+                    input_keep_prob=self.rnn_dropout)
+        self.cell4_fw = BasicLSTMCell(self.dim_embed_word, state_is_tuple=True)
+        self.cell4_bw = BasicLSTMCell(self.dim_embed_word, state_is_tuple=True)
+        self.d_cell4_fw = SwitchableDropoutWrapper(self.cell4_fw, self.is_train, \
+                    input_keep_prob=self.rnn_dropout)
+        self.d_cell4_bw = SwitchableDropoutWrapper(self.cell4_bw, self.is_train, \
+                  input_keep_prob=self.rnn_dropout)
 
         context_embed = dropout(embedding_lookup(
                 inputs=self.context,
@@ -39,7 +131,13 @@ class BiDAF(Basic):
                 initializer=self.initializer,
                 trainable=self.embed_trainable,
                 reuse=True, scope='Word'), self.embed_dropout)
+        
+        self.N = context_embed.get_shape().as_list()[0]
+        self.JX = context_embed.get_shape().as_list()[1]
+        self.JQ = question_embed.get_shape().as_list()[1]
+        self.context_len = tf.expand_dims(self.context_len, 1)
 
+        context_embed = tf.expand_dims(context_embed, 1)
         #C = self.character_embedding_layer(context_embed, question_embed)
         #print('# Character_Embedding_layer', C)
         #X, Q = self.word_embedding_layer(context_embed, question_embed)
@@ -48,53 +146,15 @@ class BiDAF(Basic):
         print('# Contextual_Embedding_layer', H, U)
         G = self.attention_flow_layer(H, U)
         print('# Attention_Flow_layer', G)
-        M = self.modeling_layer(G)
-        print('# Modeling_layer', M)
-        self.start_logits, self.end_logits = self.output_layer(G, M)
-        print('# Output_layer', self.start_logits, self.end_logits)
+        print(" === debugging end === ")
+        sys.exit()
+        #M = self.modeling_layer(G)
+        #print('# Modeling_layer', M)
+        #self.start_logits, self.end_logits = self.output_layer(G, M)
+        #print('# Output_layer', self.start_logits, self.end_logits)
 
-        self.optimize_loss(self.start_logits, self.end_logits)
+        #self.optimize_loss(self.start_logits, self.end_logits)
 
-
-        # Define forward inputs here
-        N, M, JX, JQ, VW, VC, W = \
-            config.batch_size, config.max_num_sents, config.max_sent_size, \
-            config.max_ques_size, config.word_vocab_size, config.char_vocab_size, config.max_word_size
-        self.x = tf.placeholder('int32', [N, None, None], name='x')
-        self.cx = tf.placeholder('int32', [N, None, None, W], name='cx')
-        self.x_mask = tf.placeholder('bool', [N, None, None], name='x_mask')
-        self.q = tf.placeholder('int32', [N, None], name='q')
-        self.cq = tf.placeholder('int32', [N, None, W], name='cq')
-        self.q_mask = tf.placeholder('bool', [N, None], name='q_mask')
-        self.y = tf.placeholder('bool', [N, None, None], name='y')
-        self.y2 = tf.placeholder('bool', [N, None, None], name='y2')
-        self.wy = tf.placeholder('bool', [N, None, None], name='wy')
-        self.is_train = tf.placeholder('bool', [], name='is_train')
-        self.new_emb_mat = tf.placeholder('float', [None, config.word_emb_size], name='new_emb_mat')
-        self.na = tf.placeholder('bool', [N], name='na')
-
-        # Define misc
-        self.tensor_dict = {}
-
-        # Forward outputs / loss inputs
-        self.logits = None
-        self.yp = None
-        self.var_list = None
-        self.na_prob = None
-
-        # Loss outputs
-        self.loss = None
-
-        self._build_forward()
-        self._build_loss()
-        self.var_ema = None
-        if rep:
-            self._build_var_ema()
-        if config.mode == 'train':
-            self._build_ema()
-
-        self.summary = tf.summary.merge_all()
-        self.summary = tf.summary.merge(tf.get_collection("summaries", scope=self.scope))
 
     def _build_forward(self):
         config = self.config
@@ -361,17 +421,3 @@ def bi_attention(config, is_train, h, u, h_mask=None, u_mask=None, scope=None, t
         return u_a, h_a
 
 
-def attention_layer(config, is_train, h, u, h_mask=None, u_mask=None, scope=None, tensor_dict=None):
-    with tf.variable_scope(scope or "attention_layer"):
-        JX = tf.shape(h)[2]
-        M = tf.shape(h)[1]
-        JQ = tf.shape(u)[1]
-        if config.q2c_att or config.c2q_att:
-            u_a, h_a = bi_attention(config, is_train, h, u, h_mask=h_mask, u_mask=u_mask, tensor_dict=tensor_dict)
-        if not config.c2q_att:
-            u_a = tf.tile(tf.expand_dims(tf.expand_dims(tf.reduce_mean(u, 1), 1), 1), [1, M, JX, 1])
-        if config.q2c_att:
-            p0 = tf.concat(axis=3, values=[h, u_a, h * u_a, h * h_a])
-        else:
-            p0 = tf.concat(axis=3, values=[h, u_a, h * u_a])
-        return p0
