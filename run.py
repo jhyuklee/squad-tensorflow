@@ -4,6 +4,76 @@ import numpy as np
 from evaluate import *
 from utils import *
 
+def run_paraphrase(question, question_len, context_raws, context_len, ground_truths,
+        running_em, running_f1, pp_idx, model, feed_dict, params, is_train):
+
+    sess = model.session
+    action_sample = sess.run(
+            model.action_samples[pp_idx],
+            feed_dict=feed_dict)
+    idx2action = {
+            0: 'NONE',
+            1: 'DEL',
+            2: 'INS',
+            3: 'SUB'
+    }
+
+    def paraphrase_question(sentence, length, actions):
+        new_sentence = []
+        itr = 0
+        for idx, act in enumerate(actions):
+            if act == 0: # None
+                new_sentence.append(sentence[itr])
+                itr += 1
+            elif act == 1: # DEL
+                itr += 1
+            elif act == 2: # INS, TODO: match context
+                new_sentence.append(sentence[itr])
+                itr += 1
+            elif act == 3: # SUB, TODO: match context
+                new_sentence.append(sentence[itr])
+                itr += 1
+            else:
+                assert False, 'Wrong action %d'% act
+
+            if itr >= length:
+                break
+        
+        while len(new_sentence) != len(sentence):
+            new_sentence.append(1) # PAD
+
+        # print('Original', sentence)
+        # print('Rules', ' '.join(
+        #     [idx2action[idx] for idx in actions]))
+        # print('Paraph', new_sentence)
+        return new_sentence
+    
+    paraphrased_q = []
+    for org_q, org_q_len, action in zip(question, question_len, action_sample):
+        paraphrased_q.append(paraphrase_question(org_q, org_q_len, action))
+    feed_dict[model.paraphrases[pp_idx]] = np.array(paraphrased_q)
+                        
+    ps_logits, pe_logits = sess.run(model.pp_logits[pp_idx], feed_dict=feed_dict)
+
+    predictions = pred_from_logits(ps_logits, pe_logits,
+            context_len, context_raws, params)
+    em_s, f1_s = em_f1_score(predictions, ground_truths, params)
+    
+    if is_train:
+        feed_dict[model.rewards[pp_idx]] = [(em + f1)
+                for em, f1 in zip(em_s, f1_s)]
+        feed_dict[model.baselines[pp_idx]] = [running_f1 + running_em]
+        _, pp_loss = sess.run([
+            model.pp_optimize[pp_idx],
+            model.pp_loss[pp_idx]], feed_dict=feed_dict)
+    else:
+        pp_loss = 0.0
+    
+    pp_em = np.sum(em_s)
+    pp_f1 = np.sum(f1_s)
+
+    return pp_loss, pp_f1, pp_em 
+
 
 def train(model, dataset, epoch, idx2word, params):
     print('### Training ###')
@@ -56,143 +126,39 @@ def train(model, dataset, epoch, idx2word, params):
                         model.hidden_dropout: params['hidden_dropout'],
                         model.embed_dropout: params['embed_dropout'],
                         model.learning_rate: params['learning_rate']}
-                _, loss = sess.run([model.optimize, model.loss], feed_dict=feed_dict)
+
+                if not params['train_pp_only']:
+                    _, loss = sess.run([model.optimize, model.loss], feed_dict=feed_dict)
+
+                running_em = total_em / (total_cnt + 1e-5)
+                running_f1 = total_f1 / (total_cnt + 1e-5)
 
                 if 'q' in params['mode']:
                     for pp_idx in range(params['num_paraphrase']):
-                        action_sample = sess.run(
-                                model.action_samples[pp_idx],
-                                feed_dict=feed_dict)
-
-                        idx2action = {
-                                0: 'NONE',
-                                1: 'DEL',
-                                2: 'INS',
-                                3: 'SUB'
-                        }
-                        def paraphrase_question(sentence, length, actions):
-                            new_sentence = []
-                            itr = 0
-                            for idx, act in enumerate(actions):
-                                if act == 0: # None
-                                    new_sentence.append(sentence[itr])
-                                    itr += 1
-                                elif act == 1: # DEL
-                                    itr += 1
-                                elif act == 2: # INS, TODO: match context
-                                    new_sentence.append(sentence[itr])
-                                    itr += 1
-                                elif act == 3: # SUB, TODO: match context
-                                    new_sentence.append(sentence[itr])
-                                    itr += 1
-                                else:
-                                    assert False, 'Wrong action %d'% act
-                            
-                            while len(new_sentence) != len(sentence):
-                                new_sentence.append(1) # PAD
-
-                            # TODO: length break!
-                            # print('Original', sentence)
-                            # print('Rules', ' '.join(
-                            #     [idx2action[idx] for idx in actions]))
-                            # print('Paraph', new_sentence)
-                            return new_sentence
-                        
-                        paraphrased_q = []
-                        for org_q, org_q_len, action in zip(batch_question, 
-                                batch_question_len, action_sample):
-                            paraphrased_q.append(paraphrase_question(
-                                org_q, org_q_len, action))
-                        feed_dict[model.paraphrases[pp_idx]] = np.array(paraphrased_q)
-                                            
-                        ps_logits, pe_logits = sess.run(
-                                model.pp_logits[pp_idx], feed_dict=feed_dict)
-
-                        predictions = pred_from_logits(ps_logits, pe_logits,
-                                batch_context_len, context_raws, params)
-                        em_s, f1_s = em_f1_score(predictions, ground_truths, params)
-                        
-                        running_f1 = total_f1 / (total_cnt + 1e-5)
-                        running_em = total_em / (total_cnt + 1e-5)
-                        
-                        feed_dict[model.rewards[pp_idx]] = [(em + f1)
-                                for em, f1 in zip(em_s, f1_s)]
-                        feed_dict[model.baselines[pp_idx]] = [running_f1 + running_em]
-                        _, pp_loss = sess.run([
-                            model.pp_optimize[pp_idx],
-                            model.pp_loss[pp_idx]], feed_dict=feed_dict)
-                        
-                        em = np.sum(em_s)
-                        f1 = np.sum(f1_s)
-                        pp_losses[pp_idx] += pp_loss
-                        pp_em[pp_idx] += em / len(predictions)
-                        pp_f1[pp_idx] += f1 / len(predictions)
+                        loss, em, f1 = run_paraphrase(
+                                batch_question,
+                                batch_question_len,
+                                context_raws,
+                                batch_context_len,
+                                ground_truths,
+                                running_em, running_f1, pp_idx,
+                                model, feed_dict, params, is_train=True)
+                        pp_losses[pp_idx] += loss
+                        pp_em[pp_idx] += em / len(mini_batch)
+                        pp_f1[pp_idx] += f1 / len(mini_batch)
                         pp_cnt += 1
-                        
-                        """
-                        if dataset_idx % 5 == 0:
-                            print()
-                            for sample, q_raw in zip(action_sample, question_raws):
-                                pp = ' '.join([idx2action[idx] 
-                                    for idx in sample[:len(q_raw)]])
-                                qq = ' '.join(q_raw)
-                                print('Paraphrase actions: [%s]' % (pp))
-                                print('Original question: [%s]' % (qq))
-                            print('Paraphrased f1: %.3f, em: %.3f loss: %.3f' % (
-                                np.sum(f1_s) / len(predictions), 
-                                np.sum(em_s) / len(predictions),
-                                pp_loss))
-                        """
                 
                 # Print intermediate result
                 if dataset_idx % 5 == 0:
-                    """
-                    # Dataset Debugging
-                    print(batch_context.shape, batch_context_len.shape, 
-                            batch_question.shape, batch_question_len.shape, 
-                            batch_answer_start.shape)
-                    for kk in range(len(batch_context)):
-                        print('c', batch_context[kk][:10])
-                        print('c_len', batch_context_len[kk])
-                        print('q', batch_question[kk][:10])
-                        print('q_len', batch_question_len[kk])
-                        print('a', batch_answer_start[kk])
-                        print('a', batch_answer_end[kk])
-                    """
-                
                     grads, start_logits, end_logits, lr = sess.run(
                             [model.grads, model.start_logits, model.end_logits, 
                                 model.learning_rate], feed_dict=feed_dict)
-
+                    
                     predictions = pred_from_logits(start_logits, 
                             end_logits, batch_context_len, context_raws, params)
-
-                    """
-                    dprint('shape of grad/sl/el = %s/%s/%s' % (
-                        np.asarray(grads).shape, np.asarray(start_logits).shape, 
-                                 np.asarray(end_logits).shape), params['debug'])
-                    g_norm_group = []
-                    for gs in grads:
-                        np_gs = np.asarray(gs)
-                        g_norm = np.linalg.norm(np_gs)
-
-                        norm_size = np_gs.shape
-                        g_norm_group.append(g_norm)
-                        dprint('g:' + str(g_norm) + str(norm_size), 
-                                params['debug'], end=' ')
-                    dprint('', params['debug'])
-                    g_norm_list.append(g_norm_group)
-                    """
-
-                    for sl, el in zip(start_logits, end_logits):
-                        # dprint('s:' + str(sl[:10]), params['debug'])
-                        # dprint('e:' + str(el[:10]), params['debug'])
-                        pass
-
                     em, f1 = em_f1_score(predictions, ground_truths, params)
                     em = np.sum(em)
                     f1 = np.sum(f1)
-                    dprint('', params['debug'])
                     
                     _progress = progress(dataset_idx / float(len(dataset)))
                     _progress += ("loss: %.3f, f1: %.3f, em: %.3f, progress: %d/%d, lr: %.5f, ep: %d" %
@@ -215,21 +181,13 @@ def train(model, dataset, epoch, idx2word, params):
     total_f1 /= total_cnt
     total_em /= total_cnt
     total_loss /= total_cnt
-    pp_losses[0] /= pp_cnt
-    pp_em[0] /= pp_cnt
-    pp_f1[0] /= pp_cnt
     print('\nAverage loss: %.3f, f1: %.3f, em: %.3f' % (total_loss, total_f1, total_em))
-    print('Paraphrase loss: %.3f, f1: %.3f, em: %.3f' % (pp_losses[0], pp_f1[0], pp_em[0]))
 
-    # Write norm information
-    if params['debug']:
-        f = open('./result/norm_info.txt', 'a')
-        f.write('Norm Info\n')
-        for g_norm_group in g_norm_list:
-            s = '\t'.join([str(g) for g in g_norm_group]) + '\n'
-            f.write(s)
-        f.close()
-    # sys.exit()
+    if 'q' in params['mode']:
+        pp_losses[0] /= pp_cnt
+        pp_em[0] /= pp_cnt
+        pp_f1[0] /= pp_cnt
+        print('Paraphrase loss: %.3f, f1: %.3f, em: %.3f' % (pp_losses[0], pp_f1[0], pp_em[0]))
 
 
 def test(model, dataset, params):
@@ -241,6 +199,10 @@ def test(model, dataset, params):
     context_raws = []
     question_raws = []
     total_loss = total_f1 = total_em = total_cnt = 0
+    pp_losses = [0] * params['num_paraphrase']
+    pp_f1 = [0] * params['num_paraphrase']
+    pp_em = [0] * params['num_paraphrase']
+    pp_cnt = 0
     test_writer = open('./result/analysis.txt', 'w')
 
     for dataset_idx, dataset_item in enumerate(dataset):
@@ -279,6 +241,24 @@ def test(model, dataset, params):
                         model.hidden_dropout: 1.0,
                         model.embed_dropout: 1.0}
                 
+                running_em = total_em / (total_cnt + 1e-5)
+                running_f1 = total_f1 / (total_cnt + 1e-5)
+
+                if 'q' in params['mode']:
+                    for pp_idx in range(params['num_paraphrase']):
+                        loss, em, f1 = run_paraphrase(
+                                batch_question,
+                                batch_question_len,
+                                context_raws,
+                                batch_context_len,
+                                ground_truths,
+                                running_em, running_f1, pp_idx,
+                                model, feed_dict, params, is_train=False)
+                        pp_losses[pp_idx] += loss
+                        pp_em[pp_idx] += em / len(mini_batch)
+                        pp_f1[pp_idx] += f1 / len(mini_batch)
+                        pp_cnt += 1
+                
                 # Print intermediate result
                 loss, start_logits, end_logits = sess.run(
                         [model.loss, model.start_logits, model.end_logits], 
@@ -289,9 +269,7 @@ def test(model, dataset, params):
                         for el, si, cl in zip(end_logits, start_idx, batch_context_len)]
                 predictions = []
 
-                dprint('', params['debug'])
                 for c, s_idx, e_idx in zip(context_raws, start_idx, end_idx):
-                    dprint('si/ei=(%d/%d)'% (s_idx, e_idx), params['debug'], end= '\t')
                     predictions.append(' '.join([w for w in c[s_idx: e_idx+1]]))
 
                 em = f1 = 0 
@@ -308,21 +286,13 @@ def test(model, dataset, params):
                     test_writer.write('ground_truth: ' + str(ground_truth) + '\n')
                     test_writer.write('prediction: ' + str(prediction) + '\n\n')
 
-                    prediction = prediction.split(' ') 
-                    prediction = prediction[:10] if len(prediction) > 10 else prediction
-                    dprint('pred: ' + str(' '.join(prediction)), 
-                            params['debug'] and (single_f1 > 0))
-                    dprint('real: ' + str(ground_truth), 
-                            params['debug'] and (single_f1 > 0))
-
                     em += single_em
                     f1 += single_f1
                 
-                dprint('', params['debug'])
-                
                 _progress = progress(dataset_idx / float(len(dataset)))
-                _progress += "loss: %.3f, f1: %.3f, em: %.3f, progress: %d/%d" % (loss, f1 /
-                        len(predictions), em / len(predictions), dataset_idx, len(dataset)) 
+                _progress += "loss: %.3f, f1: %.3f, em: %.3f, progress: %d/%d" % (loss, 
+                        f1 / len(predictions), 
+                        em / len(predictions), dataset_idx, len(dataset)) 
                 sys.stdout.write(_progress)
                 sys.stdout.flush()
 
@@ -343,6 +313,12 @@ def test(model, dataset, params):
     total_em /= total_cnt
     total_loss /= total_cnt
     print('\nAverage loss: %.3f, f1: %.3f, em: %.3f' % (total_loss, total_f1, total_em))
+    
+    if 'q' in params['mode']:
+        pp_losses[0] /= pp_cnt
+        pp_em[0] /= pp_cnt
+        pp_f1[0] /= pp_cnt
+        print('Paraphrase loss: %.3f, f1: %.3f, em: %.3f' % (pp_losses[0], pp_f1[0], pp_em[0]))
 
     return total_f1, total_em, total_loss
 
