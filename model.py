@@ -165,6 +165,8 @@ class Basic(object):
                     if 'Paraphrase_Layer' not in v.name]
         else:
             model_vars = [v for v in tf.trainable_variables()]
+        self.loader = tf.train.Saver(model_vars)
+        model_vars = [v for v in tf.trainable_variables()]
         self.saver = tf.train.Saver(model_vars)
         self.merged_summary = tf.summary.merge_all()
         # self.graph_writer = tf.summary.FileWriter(self.checkpoint_dir,self.session.graph)
@@ -180,6 +182,6 @@ class Basic(object):
 
     def load(self, checkpoint_dir):
         file_name = "%s.model" % self.model_name
-        self.saver.restore(self.session, os.path.join(checkpoint_dir, file_name))
+        self.loader.restore(self.session, os.path.join(checkpoint_dir, file_name))
         print("Model loaded", file_name)
 

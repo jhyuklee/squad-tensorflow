@@ -13,7 +13,7 @@ from ql_mpcm import QL_MPCM
 # from bidaf import BiDAF
 from time import gmtime, strftime
 from dataset import read_data, build_dict, load_glove, preprocess
-from run import train, test
+from run import run_epoch
 
 flags = tf.app.flags
 # Basic model settings
@@ -40,7 +40,7 @@ flags.DEFINE_boolean("early_stop", False, "True to make early stop")
 flags.DEFINE_boolean("load", False, "True to load model")
 flags.DEFINE_boolean("train", True, "True to train model")
 flags.DEFINE_boolean("embed_trainable", False, "True to optimize embedded words")
-flags.DEFINE_string("load_name", "m201707141214_0", "load model name")
+flags.DEFINE_string("load_name", "m100_300d840B", "load model name")
 flags.DEFINE_string("model_name", "none", "Replaced by load_name or auto-named")
 flags.DEFINE_string("mode", "q", "b: basic, m: mpcm, q: ql_mpcm")
 
@@ -53,9 +53,9 @@ flags.DEFINE_integer("num_action", 2, "Number of action space.")
 flags.DEFINE_boolean("train_pp_only", True, "True to train paraphrase only")
 
 # Bidaf settings
-flags.DEFINE_float("input_keep_prob", 0.8, "Input keep prob for the drop out of LSTM weights [0.8]")
+flags.DEFINE_float("input_keep_prob", 0.8, "Input keep prob of LSTM weights [0.8]")
 flags.DEFINE_float("wd", 0.0, "L2 weight decay for regularization [0.0]")
-flags.DEFINE_boolean("share_lstm_weights", True, "Share pre-processing (phrase-level) LSTM weights [True]")
+flags.DEFINE_boolean("share_lstm_weights", True, "Share preprocessed LSTM weights [True]")
 flags.DEFINE_string('logit_func', 'tri_linear', 'logit func [tri_linear]')
 flags.DEFINE_string('answer_func', 'linear', 'answer logit func [linear]')
 
@@ -84,12 +84,13 @@ def run(model, params, train_dataset, dev_dataset, idx2word):
         if params['train']:
             start_time = datetime.datetime.now()
             print("\n[Epoch %d]" % (epoch_idx + 1))
-            train(model, train_dataset, epoch_idx + 1, idx2word, params)
+            run_epoch(model, train_dataset, epoch_idx + 1, idx2word, params, is_train=True)
             elapsed_time = datetime.datetime.now() - start_time
             print('Epoch %d Done in %s' % (epoch_idx + 1, elapsed_time))
         
         if (epoch_idx + 1) % test_epoch == 0:
-            f1, em, loss = test(model, dev_dataset, params)
+            f1, em, loss = run_epoch(model, dev_dataset, 0, idx2word, 
+                    params, is_train=False)
             
             if max_f1 > f1 - 1e-2 and epoch_idx > 0 and early_stop:
                 print('Max f1: %.3f, em: %.3f, epoch: %d' % (max_f1, max_em, max_ep))
