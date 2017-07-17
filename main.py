@@ -33,6 +33,8 @@ flags.DEFINE_float("hidden_dropout", 0.5, "Dropout rate of hidden layer")
 flags.DEFINE_float("embed_dropout", 0.8, "Dropout rate of embedding layer")
 flags.DEFINE_float("learning_rate", 0.00162, "Initial learning rate of the optimzier")
 flags.DEFINE_float("max_grad_norm", 5.0, "Maximum gradient to clip")
+flags.DEFINE_float("input_keep_prob", 0.8, "Input keep prob for the drop out of LSTM weights [0.8]")
+flags.DEFINE_float("wd", 0.0, "L2 weight decay for regularization [0.0]")
 flags.DEFINE_boolean("embed_trainable", False, "True to optimize embedded words")
 flags.DEFINE_boolean("debug", False, "True to show debug message")
 flags.DEFINE_boolean("save", False, "True to save model after testing")
@@ -53,6 +55,8 @@ flags.DEFINE_string('glove_path', \
         'd.txt'), 'embed path')
 flags.DEFINE_string('validation_path', './result/validation.txt', 'Validation path')
 flags.DEFINE_string('checkpoint_dir', './result/ckpt/', 'Checkpoint directory')
+flags.DEFINE_string('logit_func', 'tri_linear', 'logit func [tri_linear]')
+flags.DEFINE_string('answer_func', 'linear', 'answer logit func [linear]')
 FLAGS = flags.FLAGS
 
 
