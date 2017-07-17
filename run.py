@@ -5,7 +5,7 @@ from evaluate import *
 from utils import *
 
 def run_paraphrase(question, question_len, context_raws, context_len, ground_truths,
-        running_em, running_f1, pp_idx, model, feed_dict, params, is_train):
+        sim_mat, running_em, running_f1, pp_idx, model, feed_dict, params, is_train):
 
     sess = model.session
     action_sample = sess.run(
@@ -60,8 +60,7 @@ def run_paraphrase(question, question_len, context_raws, context_len, ground_tru
     em_s, f1_s = em_f1_score(predictions, ground_truths, params)
     
     if is_train:
-        feed_dict[model.rewards[pp_idx]] = [(em + f1)
-                for em, f1 in zip(em_s, f1_s)]
+        feed_dict[model.rewards[pp_idx]] = [(em + f1) for em, f1 in zip(em_s, f1_s)]
         feed_dict[model.baselines[pp_idx]] = [running_f1 + running_em]
         _, pp_loss = sess.run([
             model.pp_optimize[pp_idx],
@@ -127,31 +126,32 @@ def train(model, dataset, epoch, idx2word, params):
                         model.embed_dropout: params['embed_dropout'],
                         model.learning_rate: params['learning_rate']}
 
-                if not params['train_pp_only']:
-                    _, loss = sess.run([model.optimize, model.loss], feed_dict=feed_dict)
+                # do not train when 'pp_only'
+                if not (params['mode'] == 'q' and params['train_pp_only']):
+                    sess.run(model.optimize, feed_dict=feed_dict)
 
                 running_em = total_em / (total_cnt + 1e-5)
                 running_f1 = total_f1 / (total_cnt + 1e-5)
 
                 if 'q' in params['mode']:
                     for pp_idx in range(params['num_paraphrase']):
-                        loss, em, f1 = run_paraphrase(
+                        tmp_loss, tmp_f1, tmp_em = run_paraphrase(
                                 batch_question,
                                 batch_question_len,
                                 context_raws,
                                 batch_context_len,
-                                ground_truths,
+                                ground_truths, None, # Similarity matrix
                                 running_em, running_f1, pp_idx,
                                 model, feed_dict, params, is_train=True)
-                        pp_losses[pp_idx] += loss
-                        pp_em[pp_idx] += em / len(mini_batch)
-                        pp_f1[pp_idx] += f1 / len(mini_batch)
+                        pp_losses[pp_idx] += tmp_loss
+                        pp_em[pp_idx] += tmp_em / len(mini_batch)
+                        pp_f1[pp_idx] += tmp_f1 / len(mini_batch)
                         pp_cnt += 1
                 
                 # Print intermediate result
                 if dataset_idx % 5 == 0:
-                    grads, start_logits, end_logits, lr = sess.run(
-                            [model.grads, model.start_logits, model.end_logits, 
+                    loss, start_logits, end_logits, lr = sess.run(
+                            [model.loss, model.start_logits, model.end_logits, 
                                 model.learning_rate], feed_dict=feed_dict)
                     
                     predictions = pred_from_logits(start_logits, 
@@ -161,9 +161,10 @@ def train(model, dataset, epoch, idx2word, params):
                     f1 = np.sum(f1)
                     
                     _progress = progress(dataset_idx / float(len(dataset)))
-                    _progress += ("loss: %.3f, f1: %.3f, em: %.3f, progress: %d/%d, lr: %.5f, ep: %d" %
-                            (loss, f1 / len(predictions), em / len(predictions), 
-                            dataset_idx, len(dataset), lr, epoch))
+                    _progress += "loss: %.3f, f1: %.3f, em: %.3f" % (
+                        loss, f1 / len(predictions), em / len(predictions))
+                    _progress += " progress: %d/%d, lr: %.5f, ep: %d" %(
+                            dataset_idx, len(dataset), lr, epoch)
                     sys.stdout.write(_progress)
                     sys.stdout.flush()
                     
@@ -181,13 +182,15 @@ def train(model, dataset, epoch, idx2word, params):
     total_f1 /= total_cnt
     total_em /= total_cnt
     total_loss /= total_cnt
-    print('\nAverage loss: %.3f, f1: %.3f, em: %.3f' % (total_loss, total_f1, total_em))
+    print('\nAverage loss: %.3f, f1: %.3f, em: %.3f' % (
+        total_loss, total_f1, total_em))
 
     if 'q' in params['mode']:
         pp_losses[0] /= pp_cnt
         pp_em[0] /= pp_cnt
         pp_f1[0] /= pp_cnt
-        print('Paraphrase loss: %.3f, f1: %.3f, em: %.3f' % (pp_losses[0], pp_f1[0], pp_em[0]))
+        print('Paraphrase loss: %.3f, f1: %.3f, em: %.3f' % (
+            pp_losses[0], pp_f1[0], pp_em[0]))
 
 
 def test(model, dataset, params):
@@ -216,8 +219,8 @@ def test(model, dataset, params):
             answer = qa['a']
             answer_start = qa['a_start']
             answer_end = qa['a_end']
-            mini_batch.append([context, context_len, question, question_len, answer_start,
-                answer_end])
+            mini_batch.append([context, context_len, 
+                question, question_len, answer_start, answer_end])
             ground_truths.append(answer)
             context_raws.append(context_raw)
             question_raws.append(question_raw)
@@ -246,27 +249,27 @@ def test(model, dataset, params):
 
                 if 'q' in params['mode']:
                     for pp_idx in range(params['num_paraphrase']):
-                        loss, em, f1 = run_paraphrase(
+                        tmp_loss, tmp_f1, tmp_em = run_paraphrase(
                                 batch_question,
                                 batch_question_len,
                                 context_raws,
                                 batch_context_len,
-                                ground_truths,
+                                ground_truths, None, # Similarity Matrix
                                 running_em, running_f1, pp_idx,
                                 model, feed_dict, params, is_train=False)
-                        pp_losses[pp_idx] += loss
-                        pp_em[pp_idx] += em / len(mini_batch)
-                        pp_f1[pp_idx] += f1 / len(mini_batch)
+                        pp_losses[pp_idx] += tmp_loss
+                        pp_em[pp_idx] += tmp_em / len(mini_batch)
+                        pp_f1[pp_idx] += tmp_f1 / len(mini_batch)
                         pp_cnt += 1
                 
                 # Print intermediate result
                 loss, start_logits, end_logits = sess.run(
                         [model.loss, model.start_logits, model.end_logits], 
                         feed_dict=feed_dict)
-                start_idx = [np.argmax(sl[:cl], 0) 
-                        for sl, cl in zip(start_logits, batch_context_len)]
-                end_idx = [np.argmax(el[si:cl], 0) + si
-                        for el, si, cl in zip(end_logits, start_idx, batch_context_len)]
+                start_idx = [np.argmax(sl[:cl], 0) for sl, cl in zip(
+                    start_logits, batch_context_len)]
+                end_idx = [np.argmax(el[si:cl], 0) + si for el, si, cl in zip(
+                    end_logits, start_idx, batch_context_len)]
                 predictions = []
 
                 for c, s_idx, e_idx in zip(context_raws, start_idx, end_idx):
@@ -280,7 +283,8 @@ def test(model, dataset, params):
                     single_f1 = metric_max_over_ground_truths(
                             f1_score, prediction, ground_truth)
 
-                    test_writer.write(('[Correct]' if single_f1 > 0 else '[Incorrect]') + '\n')
+                    test_writer.write(('[Correct]' if single_f1 > 0
+                        else '[Incorrect]') + '\n')
                     test_writer.write('C: ' + str(' '.join(ctr)) + '\n')
                     test_writer.write('Q: ' + str(' '.join(qur)) + '\n')
                     test_writer.write('ground_truth: ' + str(ground_truth) + '\n')
@@ -290,8 +294,8 @@ def test(model, dataset, params):
                     f1 += single_f1
                 
                 _progress = progress(dataset_idx / float(len(dataset)))
-                _progress += "loss: %.3f, f1: %.3f, em: %.3f, progress: %d/%d" % (loss, 
-                        f1 / len(predictions), 
+                _progress += "loss: %.3f, f1: %.3f, em: %.3f, progress: %d/%d" % (
+                        loss, f1 / len(predictions), 
                         em / len(predictions), dataset_idx, len(dataset)) 
                 sys.stdout.write(_progress)
                 sys.stdout.flush()
@@ -312,13 +316,15 @@ def test(model, dataset, params):
     total_f1 /= total_cnt
     total_em /= total_cnt
     total_loss /= total_cnt
-    print('\nAverage loss: %.3f, f1: %.3f, em: %.3f' % (total_loss, total_f1, total_em))
+    print('\nAverage loss: %.3f, f1: %.3f, em: %.3f' % (
+        total_loss, total_f1, total_em))
     
     if 'q' in params['mode']:
         pp_losses[0] /= pp_cnt
         pp_em[0] /= pp_cnt
         pp_f1[0] /= pp_cnt
-        print('Paraphrase loss: %.3f, f1: %.3f, em: %.3f' % (pp_losses[0], pp_f1[0], pp_em[0]))
+        print('Paraphrase loss: %.3f, f1: %.3f, em: %.3f' % (
+            pp_losses[0], pp_f1[0], pp_em[0]))
 
     return total_f1, total_em, total_loss
 

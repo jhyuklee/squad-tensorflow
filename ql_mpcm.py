@@ -26,19 +26,28 @@ class QL_MPCM(MPCM):
     def paraphrase_layer(self, question, c_state, length, max_length, reuse=None):
         with tf.variable_scope('Paraphrase_Layer', reuse=reuse) as scope:
             batch_size = tf.shape(length)[0]
-            cell = lstm_cell(self.dim_rnn_cell, self.rnn_layer, self.rnn_dropout)
-            r_inputs = rnn_reshape(question, self.dim_rnn_cell * 2, max_length)
-            
-            weights = tf.get_variable('out_w', [self.dim_rnn_cell, self.num_action],
+            weights = tf.get_variable('out_w', [self.dim_rnn_cell * 2, self.num_action],
                                       initializer=tf.random_normal_initializer())
             biases = tf.get_variable('out_b', [self.num_action],
                                      initializer=tf.constant_initializer(0.0))
+           
+            # Bidirectional
+            fw_cell = lstm_cell(self.dim_rnn_cell, self.rnn_layer, self.rnn_dropout)
+            bw_cell = lstm_cell(self.dim_rnn_cell, self.rnn_layer, self.rnn_dropout)
+            outputs, state = bi_rnn_model(question, length, fw_cell, bw_cell, 
+                    c_state[0], c_state[1])
+            outputs_t = tf.reshape(outputs, [-1, self.dim_rnn_cell * 2])
     
-            # Use c_state[0] (forward only?)
+            # Unidirectional
+            """
             zero_state = cell.zero_state(batch_size, tf.float32)
+            r_inputs = rnn_reshape(question, self.dim_rnn_cell * 2, max_length)
+            cell = lstm_cell(self.dim_rnn_cell, self.rnn_layer, self.rnn_dropout)
             outputs, state = tf.contrib.legacy_seq2seq.rnn_decoder(
                     r_inputs, c_state[0], cell)
             outputs_t = tf.reshape(tf.stack(outputs), [-1, self.dim_rnn_cell])
+            """
+
             action_logits = tf.reshape(tf.matmul(outputs_t, weights) + biases,
                     [-1, max_length, self.num_action])
 
@@ -57,8 +66,8 @@ class QL_MPCM(MPCM):
                 tf.reduce_sum(tf.expand_dims(advantage, -1) * score))
         
         self.policy_params = [p for p in tf.trainable_variables()
-                if (('Paraphrase_Layer' in p.name)
-                or ('Representation_Layer' in p.name))]
+                if (('Paraphrase_Layer' in p.name))]
+                # or ('Representation_Layer' in p.name))]
         # print([p.name for p in self.policy_params])
         policy_grads, _ = tf.clip_by_global_norm(tf.gradients(
             policy_loss, self.policy_params), self.max_grad_norm)

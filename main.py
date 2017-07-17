@@ -36,19 +36,20 @@ flags.DEFINE_boolean("embed_trainable", False, "True to optimize embedded words"
 flags.DEFINE_boolean("debug", False, "True to show debug message")
 flags.DEFINE_boolean("save", False, "True to save model after testing")
 flags.DEFINE_boolean("sample_params", False, "True to sample parameters")
+flags.DEFINE_boolean("early_stop", False, "True to make early stop")
 flags.DEFINE_boolean("load", False, "True to load model")
-flags.DEFINE_boolean("load_mpcm_only", False, "True to load only mpcm variables")
 flags.DEFINE_boolean("train", True, "True to train model")
 flags.DEFINE_boolean("train_pp_only", True, "True to train paraphrase only")
-flags.DEFINE_string("load_name", "m200_0", "load model name")
+flags.DEFINE_string("load_name", "m201707141214_0", "load model name")
 flags.DEFINE_string("model_name", "none", "model name for building")
-flags.DEFINE_string("mode", "m", "b: basic, m: mpcm, q: ql_mpcm")
+flags.DEFINE_string("mode", "q", "b: basic, m: mpcm, q: ql_mpcm")
+flags.DEFINE_string("glove_size", "6", "use 6B or 840B for glove")
 flags.DEFINE_string('train_path', './data/train-v1.1.json', 'Training dataset path')
 flags.DEFINE_string('dev_path', './data/dev-v1.1.json',  'Development dataset path')
 flags.DEFINE_string('pred_path', './result/dev-v1.1-pred.json', 'Pred output path')
 flags.DEFINE_string('glove_path', \
-        ('~/common/glove/glove.6B.'+ str(tf.app.flags.FLAGS.dim_embed_word) +
-        'd.txt'), 'embed path')
+        ('~/common/glove/glove.'+ tf.app.flags.FLAGS.glove_size +'B.'
+            + str(tf.app.flags.FLAGS.dim_embed_word) +'d.txt'), 'embed path')
 flags.DEFINE_string('validation_path', './result/validation.txt', 'Validation path')
 flags.DEFINE_string('checkpoint_dir', './result/ckpt/', 'Checkpoint directory')
 FLAGS = flags.FLAGS
@@ -59,6 +60,7 @@ def run(model, params, train_dataset, dev_dataset, idx2word):
     train_epoch = params['train_epoch']
     test_epoch = params['test_epoch']
     init_lr = params['learning_rate']
+    early_stop = params['early_stop']
 
     for epoch_idx in range(train_epoch):
         if params['train']:
@@ -71,7 +73,7 @@ def run(model, params, train_dataset, dev_dataset, idx2word):
         if (epoch_idx + 1) % test_epoch == 0:
             f1, em, loss = test(model, dev_dataset, params)
             
-            if max_f1 > f1 - 1e-2 and epoch_idx > 0:
+            if max_f1 > f1 - 1e-2 and epoch_idx > 0 and early_stop:
                 print('Max f1: %.3f, em: %.3f, epoch: %d' % (max_f1, max_em, max_ep))
                 es_cnt += 1
                 if es_cnt > 3:
@@ -167,7 +169,8 @@ def main(_):
             params['model_name'] = params['load_name']
         else:
             ymdhm = datetime.datetime.now().strftime('%Y%m%d%H%M') 
-            params['model_name'] = '%s%s_%d' % (params['mode'], ymdhm, model_idx)
+            params['model_name'] = '%s_%d_%s_%d' % (params['mode'],
+                    params['context_maxlen'], ymdhm, model_idx)
         
         print('\nModel_%d paramter set' % (model_idx))
         pprint.PrettyPrinter().pprint(params)

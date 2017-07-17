@@ -160,7 +160,7 @@ class Basic(object):
             total_parameters += variable_parameters
         print('Total parameters', total_parameters)
         
-        if self.params['load_mpcm_only']:
+        if self.params['mode'] == 'q':
             model_vars = [v for v in tf.trainable_variables()
                     if 'Paraphrase_Layer' not in v.name]
         else:

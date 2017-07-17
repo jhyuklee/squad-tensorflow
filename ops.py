@@ -43,11 +43,15 @@ def rnn_model(inputs, input_len, max_time_step, cell, params, gather_last=False)
         return gathered_outputs
 
 
-def bi_rnn_model(inputs, input_len, fw_cell, bw_cell):
+def bi_rnn_model(inputs, input_len, fw_cell, bw_cell, 
+        fw_init_state=None, bw_init_state=None):
     with tf.variable_scope('Bi-RNN') as scope:
         outputs, state = tf.nn.bidirectional_dynamic_rnn(
                 fw_cell, bw_cell, inputs,
-                sequence_length=input_len, dtype=tf.float32, scope=scope)
+                sequence_length=input_len, 
+                initial_state_fw=fw_init_state,
+                initial_state_bw=bw_init_state,
+                dtype=tf.float32, scope=scope)
         outputs = tf.concat(axis=2, values=[outputs[0], outputs[1]])
         return outputs, state
 
