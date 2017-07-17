@@ -12,7 +12,7 @@ from ops import *
 class BiDAF(Basic):
     def __init__(self, params, initializer, is_train=True):
         self.is_train = tf.constant(is_train, dtype=None)
-        # params
+        # params hi hyunjae
         self.input_keep_prob = params['input_keep_prob']
         self.share_lstm_weights = params['share_lstm_weights']
         self.wd = params['wd']

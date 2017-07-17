@@ -188,7 +188,7 @@ def main(_):
             params['model_name'] = params['load_name']
         else:
             ymdhm = datetime.datetime.now().strftime('%Y%m%d%H%M') 
-            params['model_name'] = '%s_%d_%s_%d' % (params['mode'],
+            params['model_name'] = '%s%d_%s_%d' % (params['mode'],
                     params['context_maxlen'], ymdhm, model_idx)
         
         print('\nModel_%d paramter set' % (model_idx))

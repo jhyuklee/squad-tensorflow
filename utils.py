@@ -54,3 +54,4 @@ def pred_from_logits(start_logits, end_logits, batch_context_len, c_raws, params
         predictions.append(' '.join([w for w in c[s_idx: e_idx+1]]))
 
     return predictions
+

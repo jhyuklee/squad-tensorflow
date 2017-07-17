@@ -66,15 +66,17 @@ def run_paraphrase(question, question_len, context_raws, context_len, ground_tru
    
     # Use REINFORE with original em, f1 as baseline
     if is_train:
-        rewards = 
-        feed_dict[model.rewards[pp_idx]] = em_s + f1_s
-        feed_dict[model.baselines[pp_idx]] = baseline_em + baseline_f1
+        rewards = np.sum([em_s, f1_s], axis=0)
+        feed_dict[model.rewards[pp_idx]] = rewards
+        baselines = np.sum([baseline_em, baseline_f1], axis=0)
+        feed_dict[model.baselines[pp_idx]] = baselines
         _, pp_loss = sess.run([
             model.pp_optimize[pp_idx],
             model.pp_loss[pp_idx]], feed_dict=feed_dict)
-        advantage = np.sum(em_s + f1_s - baseline_em - baseline_f1)
+        advantage = np.sum(rewards - baselines)
     else:
         pp_loss = 0.0
+        advantage = 0.0
     
     pp_em = np.sum(em_s) / len(question)
     pp_f1 = np.sum(f1_s) / len(question)
