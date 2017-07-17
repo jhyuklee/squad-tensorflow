@@ -42,11 +42,11 @@ def run_paraphrase(question, question_len, context_raws, context_len, ground_tru
         while len(new_sentence) != len(sentence):
             new_sentence.append(1) # PAD token
 
-        dprint('\nOriginal %s'% sentence[:length], params['debug'])
-        dprint('Rules %s'% 
-                (' '.join([idx2action[idx] for idx in actions[:length]])),
-                params['debug'])
-        dprint('Paraphrase %s'% new_sentence[:length], params['debug'])
+        # dprint('\nOriginal %s'% sentence[:length], params['debug'])
+        # dprint('Rules %s'% 
+        #         (' '.join([idx2action[idx] for idx in actions[:length]])),
+        #         params['debug'])
+        # dprint('Paraphrase %s'% new_sentence[:length], params['debug'])
         return new_sentence
    
     # Get paraphrased question according to the action_sample
@@ -60,9 +60,13 @@ def run_paraphrase(question, question_len, context_raws, context_len, ground_tru
     predictions = pred_from_logits(ps_logits, pe_logits,
             context_len, context_raws, params)
     em_s, f1_s = em_f1_score(predictions, ground_truths, params)
+    dprint('paraphrased em %s' % em_s, params['debug'])
+    dprint('baeline em %s' % baseline_em, params['debug'])
+    dprint('advantage em %s' % baseline_em, params['debug'])
    
     # Use REINFORE with original em, f1 as baseline
     if is_train:
+        rewards = 
         feed_dict[model.rewards[pp_idx]] = em_s + f1_s
         feed_dict[model.baselines[pp_idx]] = baseline_em + baseline_f1
         _, pp_loss = sess.run([
@@ -178,6 +182,8 @@ def run_epoch(model, dataset, epoch, idx2word, params, is_train=True):
                     _progress += "loss: %.3f, em: %.3f, f1: %.3f" % (loss, em, f1)
                     _progress += " progress: %d/%d, lr: %.5f, ep: %d" %(
                             dataset_idx, len(dataset), lr, epoch)
+                    if 'q' == params['mode']:
+                        _progress += " adv: %.3f" % pp_advantage[0] / pp_cnt
                     sys.stdout.write(_progress)
                     sys.stdout.flush()
                     

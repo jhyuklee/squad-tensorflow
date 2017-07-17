@@ -40,7 +40,7 @@ flags.DEFINE_boolean("early_stop", False, "True to make early stop")
 flags.DEFINE_boolean("load", False, "True to load model")
 flags.DEFINE_boolean("train", True, "True to train model")
 flags.DEFINE_boolean("embed_trainable", False, "True to optimize embedded words")
-flags.DEFINE_string("load_name", "m100_300d6B", "load model name")
+flags.DEFINE_string("load_name", "m100_300d6B2", "load model name")
 flags.DEFINE_string("model_name", "none", "Replaced by load_name or auto-named")
 flags.DEFINE_string("mode", "q", "b: basic, m: mpcm, q: ql_mpcm")
 
