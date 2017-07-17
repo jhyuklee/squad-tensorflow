@@ -10,6 +10,7 @@ import copy
 from model import Basic
 from mpcm import MPCM
 from ql_mpcm import QL_MPCM
+from bidaf import BiDAF
 from time import gmtime, strftime
 from dataset import read_data, build_dict, load_glove, preprocess
 from run import train, test
@@ -32,6 +33,8 @@ flags.DEFINE_float("hidden_dropout", 0.5, "Dropout rate of hidden layer")
 flags.DEFINE_float("embed_dropout", 0.8, "Dropout rate of embedding layer")
 flags.DEFINE_float("learning_rate", 0.00162, "Initial learning rate of the optimzier")
 flags.DEFINE_float("max_grad_norm", 5.0, "Maximum gradient to clip")
+flags.DEFINE_float("input_keep_prob", 0.8, "Input keep prob for the drop out of LSTM weights [0.8]")
+flags.DEFINE_float("wd", 0.0, "L2 weight decay for regularization [0.0]")
 flags.DEFINE_boolean("embed_trainable", False, "True to optimize embedded words")
 flags.DEFINE_boolean("debug", False, "True to show debug message")
 flags.DEFINE_boolean("save", False, "True to save model after testing")
@@ -39,6 +42,7 @@ flags.DEFINE_boolean("sample_params", False, "True to sample parameters")
 flags.DEFINE_boolean("early_stop", False, "True to make early stop")
 flags.DEFINE_boolean("load", False, "True to load model")
 flags.DEFINE_boolean("train", True, "True to train model")
+flags.DEFINE_boolean("share_lstm_weights", True, "Share pre-processing (phrase-level) LSTM weights [True]")
 flags.DEFINE_boolean("train_pp_only", True, "True to train paraphrase only")
 flags.DEFINE_string("load_name", "m201707141214_0", "load model name")
 flags.DEFINE_string("model_name", "none", "model name for building")
@@ -52,6 +56,8 @@ flags.DEFINE_string('glove_path', \
             + str(tf.app.flags.FLAGS.dim_embed_word) +'d.txt'), 'embed path')
 flags.DEFINE_string('validation_path', './result/validation.txt', 'Validation path')
 flags.DEFINE_string('checkpoint_dir', './result/ckpt/', 'Checkpoint directory')
+flags.DEFINE_string('logit_func', 'tri_linear', 'logit func [tri_linear]')
+flags.DEFINE_string('answer_func', 'linear', 'answer logit func [linear]')
 FLAGS = flags.FLAGS
 
 
@@ -175,12 +181,14 @@ def main(_):
         print('\nModel_%d paramter set' % (model_idx))
         pprint.PrettyPrinter().pprint(params)
 
-        if 'm' in params['mode']:
+        if 'm' == params['mode']:
             my_model = MPCM(params, initializer=[pretrained_glove, word2idx])
-        elif 'q' in params['mode']:
+        elif 'q' == params['mode']:
             my_model = QL_MPCM(params, initializer=[pretrained_glove, word2idx])
-        elif 'b' in params['mode']:
+        elif 'b' == params['mode']:
             my_model = Basic(params, initializer=[pretrained_glove, word2idx])
+        elif 'bidaf' == params['mode']:
+            my_model = BiDAF(params, initializer=[pretrained_glove, word2idx])
         else:
             assert False, "Check your version %s" % params['mode']
 
