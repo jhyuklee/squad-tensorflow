@@ -37,14 +37,6 @@ def em_f1_score(predictions, ground_truths, params):
         single_f1 = metric_max_over_ground_truths(
                 f1_score, prediction, ground_truth)
 
-        prediction = prediction.split(' ')
-        if len(prediction) > 10:
-            prediction = prediction[:10]
-        dprint('pred: ' + str(' '.join(prediction)), 
-                params['debug'] and (single_f1 > 0))
-        dprint('real: ' + str(ground_truth), 
-                params['debug'] and (single_f1 > 0))
-
         em.append(single_em)
         f1.append(single_f1)
 
@@ -58,10 +50,7 @@ def pred_from_logits(start_logits, end_logits, batch_context_len, c_raws, params
         end_logits, start_idx, batch_context_len)]
 
     predictions = []
-    dprint('', params['debug'])
     for c, s_idx, e_idx in zip(c_raws, start_idx, end_idx):
-        dprint('si/ei=(%d/%d)'% (s_idx, e_idx), params['debug'], 
-                end= '\t')
         predictions.append(' '.join([w for w in c[s_idx: e_idx+1]]))
 
     return predictions

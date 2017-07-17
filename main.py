@@ -40,7 +40,7 @@ flags.DEFINE_boolean("early_stop", False, "True to make early stop")
 flags.DEFINE_boolean("load", False, "True to load model")
 flags.DEFINE_boolean("train", True, "True to train model")
 flags.DEFINE_boolean("embed_trainable", False, "True to optimize embedded words")
-flags.DEFINE_string("load_name", "m100_300d840B", "load model name")
+flags.DEFINE_string("load_name", "m100_300d6B", "load model name")
 flags.DEFINE_string("model_name", "none", "Replaced by load_name or auto-named")
 flags.DEFINE_string("mode", "q", "b: basic, m: mpcm, q: ql_mpcm")
 
@@ -89,7 +89,7 @@ def run(model, params, train_dataset, dev_dataset, idx2word):
             print('Epoch %d Done in %s' % (epoch_idx + 1, elapsed_time))
         
         if (epoch_idx + 1) % test_epoch == 0:
-            f1, em, loss = run_epoch(model, dev_dataset, 0, idx2word, 
+            em, f1, loss = run_epoch(model, dev_dataset, 0, idx2word, 
                     params, is_train=False)
             
             if max_f1 > f1 - 1e-2 and epoch_idx > 0 and early_stop:
