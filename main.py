@@ -10,54 +10,66 @@ import copy
 from model import Basic
 from mpcm import MPCM
 from ql_mpcm import QL_MPCM
-from bidaf import BiDAF
+# from bidaf import BiDAF
 from time import gmtime, strftime
 from dataset import read_data, build_dict, load_glove, preprocess
 from run import train, test
 
 flags = tf.app.flags
-flags.DEFINE_integer('train_epoch', 100, 'Training epoch')
-flags.DEFINE_integer('test_epoch', 1, 'Test for every n training epoch')
+# Basic model settings
 flags.DEFINE_integer("batch_size", 32, "Size of batch (32)")
-flags.DEFINE_integer("dim_perspective", 20, "Maximum number of perspective (20)")
 flags.DEFINE_integer("dim_embed_word", 300, "Dimension of word embedding (300)")
 flags.DEFINE_integer("dim_rnn_cell", 100, "Dimension of RNN cell (100)")
 flags.DEFINE_integer("dim_hidden", 100, "Dimension of hidden layer")
-flags.DEFINE_integer("num_paraphrase", 1, "Maximum number of question paraphrasing")
-flags.DEFINE_integer("num_action", 2, "Number of action space.")
 flags.DEFINE_integer("rnn_layer", 1, "Layer number of RNN ")
-flags.DEFINE_integer("context_maxlen", 0, "Predefined context max length")
-flags.DEFINE_integer("validation_cnt", 100, "Number of model validation")
+flags.DEFINE_integer("context_maxlen", 0, "Predefined context max length (0 for max)")
 flags.DEFINE_float("rnn_dropout", 0.5, "Dropout of RNN cell")
 flags.DEFINE_float("hidden_dropout", 0.5, "Dropout rate of hidden layer")
 flags.DEFINE_float("embed_dropout", 0.8, "Dropout rate of embedding layer")
 flags.DEFINE_float("learning_rate", 0.00162, "Initial learning rate of the optimzier")
 flags.DEFINE_float("max_grad_norm", 5.0, "Maximum gradient to clip")
-flags.DEFINE_float("input_keep_prob", 0.8, "Input keep prob for the drop out of LSTM weights [0.8]")
-flags.DEFINE_float("wd", 0.0, "L2 weight decay for regularization [0.0]")
-flags.DEFINE_boolean("embed_trainable", False, "True to optimize embedded words")
+
+# Run options
+flags.DEFINE_integer('train_epoch', 100, 'Training epoch')
+flags.DEFINE_integer('test_epoch', 1, 'Test for every n training epoch')
+flags.DEFINE_integer("validation_cnt", 100, "Number of model validation")
 flags.DEFINE_boolean("debug", False, "True to show debug message")
 flags.DEFINE_boolean("save", False, "True to save model after testing")
 flags.DEFINE_boolean("sample_params", False, "True to sample parameters")
 flags.DEFINE_boolean("early_stop", False, "True to make early stop")
 flags.DEFINE_boolean("load", False, "True to load model")
 flags.DEFINE_boolean("train", True, "True to train model")
-flags.DEFINE_boolean("share_lstm_weights", True, "Share pre-processing (phrase-level) LSTM weights [True]")
-flags.DEFINE_boolean("train_pp_only", True, "True to train paraphrase only")
+flags.DEFINE_boolean("embed_trainable", False, "True to optimize embedded words")
 flags.DEFINE_string("load_name", "m201707141214_0", "load model name")
-flags.DEFINE_string("model_name", "none", "model name for building")
+flags.DEFINE_string("model_name", "none", "Replaced by load_name or auto-named")
 flags.DEFINE_string("mode", "q", "b: basic, m: mpcm, q: ql_mpcm")
-flags.DEFINE_string("glove_size", "6", "use 6B or 840B for glove")
+
+# MPCM settings
+flags.DEFINE_integer("dim_perspective", 20, "Maximum number of perspective (20)")
+
+# Paraphrase settings
+flags.DEFINE_integer("num_paraphrase", 1, "Maximum number of question paraphrasing")
+flags.DEFINE_integer("num_action", 2, "Number of action space.")
+flags.DEFINE_boolean("train_pp_only", True, "True to train paraphrase only")
+
+# Bidaf settings
+flags.DEFINE_float("input_keep_prob", 0.8, "Input keep prob for the drop out of LSTM weights [0.8]")
+flags.DEFINE_float("wd", 0.0, "L2 weight decay for regularization [0.0]")
+flags.DEFINE_boolean("share_lstm_weights", True, "Share pre-processing (phrase-level) LSTM weights [True]")
+flags.DEFINE_string('logit_func', 'tri_linear', 'logit func [tri_linear]')
+flags.DEFINE_string('answer_func', 'linear', 'answer logit func [linear]')
+
+# Path settings
+flags.DEFINE_string('checkpoint_dir', './result/ckpt/', 'Checkpoint directory')
 flags.DEFINE_string('train_path', './data/train-v1.1.json', 'Training dataset path')
 flags.DEFINE_string('dev_path', './data/dev-v1.1.json',  'Development dataset path')
 flags.DEFINE_string('pred_path', './result/dev-v1.1-pred.json', 'Pred output path')
+flags.DEFINE_string("glove_size", "6", "use 6B or 840B for glove")
 flags.DEFINE_string('glove_path', \
-        ('~/common/glove/glove.'+ tf.app.flags.FLAGS.glove_size +'B.'
+        ('~/common/glove/glove.'+ tf.app.flags.FLAGS.glove_size + 'B.'
             + str(tf.app.flags.FLAGS.dim_embed_word) +'d.txt'), 'embed path')
 flags.DEFINE_string('validation_path', './result/validation.txt', 'Validation path')
-flags.DEFINE_string('checkpoint_dir', './result/ckpt/', 'Checkpoint directory')
-flags.DEFINE_string('logit_func', 'tri_linear', 'logit func [tri_linear]')
-flags.DEFINE_string('answer_func', 'linear', 'answer logit func [linear]')
+
 FLAGS = flags.FLAGS
 
 
