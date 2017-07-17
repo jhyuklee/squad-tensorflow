@@ -48,31 +48,34 @@ def run_paraphrase(question, question_len, context_raws, context_len, ground_tru
                 params['debug'])
         dprint('Paraphrase %s'% new_sentence[:length], params['debug'])
         return new_sentence
-    
+   
+    # Get paraphrased question according to the action_sample
     paraphrased_q = []
     for org_q, org_q_len, action in zip(question, question_len, action_sample):
         paraphrased_q.append(paraphrase_question(org_q, org_q_len, action))
-    feed_dict[model.paraphrases[pp_idx]] = np.array(paraphrased_q)
-                        
-    ps_logits, pe_logits = sess.run(model.pp_logits[pp_idx], feed_dict=feed_dict)
 
+    # Get scores for paraphrased question
+    feed_dict[model.paraphrases[pp_idx]] = np.array(paraphrased_q)
+    ps_logits, pe_logits = sess.run(model.pp_logits[pp_idx], feed_dict=feed_dict)
     predictions = pred_from_logits(ps_logits, pe_logits,
             context_len, context_raws, params)
     em_s, f1_s = em_f1_score(predictions, ground_truths, params)
-    
+   
+    # Use REINFORE with original em, f1 as baseline
     if is_train:
-        feed_dict[model.rewards[pp_idx]] = [(em + f1) for em, f1 in zip(em_s, f1_s)]
-        feed_dict[model.baselines[pp_idx]] = [baseline_f1 + baseline_em]
+        feed_dict[model.rewards[pp_idx]] = em_s + f1_s
+        feed_dict[model.baselines[pp_idx]] = baseline_em + baseline_f1
         _, pp_loss = sess.run([
             model.pp_optimize[pp_idx],
             model.pp_loss[pp_idx]], feed_dict=feed_dict)
+        advantage = np.sum(em_s + f1_s - baseline_em - baseline_f1)
     else:
         pp_loss = 0.0
     
     pp_em = np.sum(em_s) / len(question)
     pp_f1 = np.sum(f1_s) / len(question)
 
-    return pp_em, pp_f1, pp_loss
+    return pp_em, pp_f1, pp_loss, advantage
 
 
 def run_epoch(model, dataset, epoch, idx2word, params, is_train=True):
@@ -84,9 +87,10 @@ def run_epoch(model, dataset, epoch, idx2word, params, is_train=True):
     context_raws = []
     question_raws = []  # Not used with idx2word
     total_loss = total_f1 = total_em = total_cnt = 0
-    pp_losses = [0] * params['num_paraphrase']
-    pp_f1 = [0] * params['num_paraphrase']
     pp_em = [0] * params['num_paraphrase']
+    pp_f1 = [0] * params['num_paraphrase']
+    pp_losses = [0] * params['num_paraphrase']
+    pp_advantage = [0] * params['num_paraphrase']
     pp_cnt = 0
 
     for dataset_idx, dataset_item in enumerate(dataset):
@@ -151,7 +155,7 @@ def run_epoch(model, dataset, epoch, idx2word, params, is_train=True):
 
                 if 'q' == params['mode']:
                     for pp_idx in range(params['num_paraphrase']):
-                        tmp_em, tmp_f1, tmp_loss = run_paraphrase(
+                        tmp_em, tmp_f1, tmp_loss, advantage = run_paraphrase(
                                 batch_question,
                                 batch_question_len,
                                 context_raws,
@@ -162,6 +166,7 @@ def run_epoch(model, dataset, epoch, idx2word, params, is_train=True):
                         pp_em[pp_idx] += tmp_em
                         pp_f1[pp_idx] += tmp_f1
                         pp_losses[pp_idx] += tmp_loss
+                        pp_advantage[pp_idx] += advantage
                         pp_cnt += 1
                 
                 # Print intermediate result
@@ -187,18 +192,19 @@ def run_epoch(model, dataset, epoch, idx2word, params, is_train=True):
                 question_raws = []
 
     # Average result
-    total_f1 /= total_cnt
     total_em /= total_cnt
+    total_f1 /= total_cnt
     total_loss /= total_cnt
-    print('\nAverage loss: %.3f, f1: %.3f, em: %.3f' % (
-        total_loss, total_f1, total_em))
+    print('\nAverage loss: %.3f, em: %.3f, f1: %.3f' % (
+        total_loss, total_em, total_f1))
 
     if 'q' in params['mode']:
-        pp_losses[0] /= pp_cnt
         pp_em[0] /= pp_cnt
         pp_f1[0] /= pp_cnt
-        print('Paraphrase loss: %.3f, f1: %.3f, em: %.3f' % (
-            pp_losses[0], pp_f1[0], pp_em[0]))
+        pp_losses[0] /= pp_cnt
+        pp_advantage[0] /= pp_cnt
+        print('Paraphrase loss: %.3f, em: %.3f, f1: %.3f, adv: %.3f' % (
+            pp_losses[0], pp_f1[0], pp_em[0], pp_advantage[0]))
 
     return total_em, total_f1, total_loss
 
