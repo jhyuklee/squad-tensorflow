@@ -67,7 +67,7 @@ def load_glove(dictionary, params):
 
 
 def tokenize(words):
-    result = [token.replace("''", '"').replace("``", '"') 
+    result = [token.replace("''", '"').replace("``", '"').lower() 
             for token in nltk.word_tokenize(words)]
     return result
 

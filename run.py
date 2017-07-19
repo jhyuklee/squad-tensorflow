@@ -138,6 +138,9 @@ def run_epoch(model, dataset, epoch, idx2word, params, is_train=True):
                     feed_dict[model.rnn_dropout] = 1.0
                     feed_dict[model.hidden_dropout] = 1.0
                     feed_dict[model.embed_dropout] = 1.0
+                
+                if params['mode'] == 'bidaf':
+                    feed_dict[model.is_train] = is_train
 
                 # do not train when 'pp_only'
                 if not (params['mode'] == 'q' and params['train_pp_only']) and is_train:

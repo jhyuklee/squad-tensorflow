@@ -10,8 +10,7 @@ from ops import *
 
 
 class BiDAF(Basic):
-    def __init__(self, params, initializer, is_train=True):
-        self.is_train = tf.constant(is_train, dtype=None)
+    def __init__(self, params, initializer):
         # params hi hyunjae
         self.input_keep_prob = params['input_keep_prob']
         self.share_lstm_weights = params['share_lstm_weights']
@@ -19,8 +18,7 @@ class BiDAF(Basic):
         self.logit_func = params['logit_func']
         self.answer_func = params['answer_func']
         # Placeholders
-        #self.x_mask = tf.placeholder('bool', [None, None, None], name='x_mask')
-        #self.q_mask = tf.placeholder('bool', [None, None], name='q_mask')
+        self.is_train = tf.placeholder('bool')
         
         super(BiDAF, self).__init__(params, initializer)
 
@@ -31,22 +29,18 @@ class BiDAF(Basic):
     def contextual_embedding_layer(self, xx, qq, reuse=None):
         ### contextual embedding layer
         with tf.variable_scope("Contextual_Embedding_Layer", reuse=reuse) as scope:
-            print("xx : ", xx)
-            print("qq : ", qq)
             (fw_u, bw_u), ((_, fw_u_f), (_, bw_u_f)) = bidirectional_dynamic_rnn(
                     self.d_cell_fw, self.d_cell_bw, qq, 
-                    self.context_len, dtype='float', scope='u1')  # [N, J, d], [N, d]
-            print("fw_u : ", fw_u)
-            print("bw_u : ", bw_u)
+                    self.con_len, dtype='float', scope='u1')  # [N, J, d], [N, d]
             u = tf.concat(axis=2, values=[fw_u, bw_u])
             if self.share_lstm_weights:
                 tf.get_variable_scope().reuse_variables()
                 (fw_h, bw_h), _ = bidirectional_dynamic_rnn(self.cell_fw, self.cell_bw, \
-                                xx, self.context_len, dtype='float', scope='u1')  # [N, M, JX, 2d]
+                                xx, self.con_len, dtype='float', scope='u1')  # [N, M, JX, 2d]
                 h = tf.concat(axis=3, values=[fw_h, bw_h])  # [N, M, JX, 2d]
             else:
                 (fw_h, bw_h), _ = bidirectional_dynamic_rnn(self.cell_fw, self.cell_bw, \
-                                xx, self.context_len, dtype='float', scope='h1')  # [N, M, JX, 2d]
+                                xx, self.con_len, dtype='float', scope='h1')  # [N, M, JX, 2d]
                 h = tf.concat(axis=3, values=[fw_h, bw_h])  # [N, M, JX, 2d]
         return h, u
 
@@ -81,11 +75,11 @@ class BiDAF(Basic):
             first_cell_bw = self.d_cell2_bw
             second_cell_bw = self.d_cell3_bw
             (fw_g0, bw_g0), _ = bidirectional_dynamic_rnn(first_cell_fw, first_cell_bw, 
-                                p0, self.context_len, 
+                                p0, self.con_len, 
                                 dtype='float', scope='g0')  # [N, M, JX, 2d]
             g0 = tf.concat(axis=3, values=[fw_g0, bw_g0])
             (fw_g1, bw_g1), _ = bidirectional_dynamic_rnn(second_cell_fw, second_cell_bw, 
-                                g0, self.context_len, 
+                                g0, self.con_len, 
                                 dtype='float', scope='g1')  # [N, M, JX, 2d]
             g1 = tf.concat(axis=3, values=[fw_g1, bw_g1])
             return g1
@@ -108,7 +102,7 @@ class BiDAF(Basic):
             (fw_g2, bw_g2), _ = bidirectional_dynamic_rnn(  # [N, M, JX, 2d]
                                 self.d_cell4_fw, self.d_cell4_bw, 
                                 tf.concat(axis=3, values=[p0, g1, a1i, g1 * a1i]),
-                                self.context_len, dtype='float', scope='g2')  
+                                self.con_len, dtype='float', scope='g2')  
             
             g2 = tf.concat(axis=3, values=[fw_g2, bw_g2])
             logits2 = get_logits([g2, p0], d, True, 
@@ -158,6 +152,18 @@ class BiDAF(Basic):
         self.d_cell4_bw = SwitchableDropoutWrapper(self.cell4_bw, self.is_train, \
                   input_keep_prob=self.input_keep_prob)
 
+        # TODO: mask
+        #tiled = tf.tile(tf.expand_dims(self.context_len, 1), [1, self.context_maxlen])
+        #_range = tf.tile(tf.expand_dims(tf.range(0, self.context_maxlen), 1), 
+        #        [1, self.context_len.get_shape().as_list()[0]])
+        #print("before : ", tiled, _range)
+        #_range = tf.traspose(_range)
+        #print("after : ", tiled, _range)
+        #self.x_mask = tf.less(_range, tiled)
+        #self.x_mask = tf.Print(self.x_mask, [self.x_mask], "self.x_mask : ")
+        #self.x_mask = tf.placeholder('bool', [None, None, None], name='x_mask')
+        #self.q_mask = tf.placeholder('bool', [None, None], name='q_mask')
+        
         context_embed = dropout(embedding_lookup(
                 inputs=self.context,
                 voca_size=self.voca_size,
@@ -177,14 +183,15 @@ class BiDAF(Basic):
         self.N = context_embed.get_shape().as_list()[0]
         self.JX = context_embed.get_shape().as_list()[1]
         self.JQ = question_embed.get_shape().as_list()[1]
-        self.context_len = tf.expand_dims(self.context_len, 1)
-        context_embed = tf.expand_dims(context_embed, 1)
-        
+        self.con_len = tf.expand_dims(self.context_len, 1)
+        #context_embed = tf.expand_dims(context_embed, 1)
+        #context_embed = tf.Print(context_embed, [context_embed], "context_embed")
+        xx = tf.expand_dims(context_embed, 1)
         #C = self.character_embedding_layer(context_embed, question_embed)
         #print('# Character_Embedding_layer', C)
         #X, Q = self.word_embedding_layer(context_embed, question_embed)
         #print('# Word_Embedding_layer', X, Q)
-        H, U = self.contextual_embedding_layer(context_embed, question_embed)
+        H, U = self.contextual_embedding_layer(xx, question_embed)
         print('# Contextual_Embedding_layer', H, U)
         G = self.attention_flow_layer(H, U)
         print('# Attention_Flow_layer', G)

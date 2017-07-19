@@ -10,7 +10,8 @@ import copy
 from model import Basic
 from mpcm import MPCM
 from ql_mpcm import QL_MPCM
-# from bidaf import BiDAF
+from bidaf import BiDAF
+from my_bidaf import My_BiDAF
 from time import gmtime, strftime
 from dataset import read_data, build_dict, load_glove, preprocess
 from run import run_epoch
@@ -202,6 +203,8 @@ def main(_):
             my_model = Basic(params, initializer=[pretrained_glove, word2idx])
         elif 'bidaf' == params['mode']:
             my_model = BiDAF(params, initializer=[pretrained_glove, word2idx])
+        elif 'my_bidaf' == params['mode']:
+            my_model = My_BiDAF(params, initializer=[pretrained_glove, word2idx])
         else:
             assert False, "Check your version %s" % params['mode']
 
