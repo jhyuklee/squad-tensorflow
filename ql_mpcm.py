@@ -57,9 +57,7 @@ class QL_MPCM(MPCM):
             
             # Concat question and context [q, c_sim]
             if candidate is not None:
-                print('before question', question)
                 question = tf.concat(axis=2, values=[question, candidate])
-                print('question concat', question)
            
             # Bidirectional
             fw_cell = lstm_cell(self.dim_rnn_cell, self.rnn_layer, self.rnn_dropout)
@@ -117,7 +115,7 @@ class QL_MPCM(MPCM):
         """
         self.policy_gradients = self.optimizer.compute_gradients(total_loss,
                 var_list=self.policy_params)
-        advantage = tf.reduce_mean(advantage)
+        advantage = tf.reduce_sum(advantage)
 
         for i, (grad, var) in enumerate(self.policy_gradients):
             if grad is not None:

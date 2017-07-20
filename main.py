@@ -10,7 +10,7 @@ import copy
 from model import Basic
 from mpcm import MPCM
 from ql_mpcm import QL_MPCM
-from bidaf import BiDAF
+# from bidaf import BiDAF
 from time import gmtime, strftime
 from dataset import read_data, build_dict, load_glove, preprocess
 from run import run_epoch
