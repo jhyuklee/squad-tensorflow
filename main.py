@@ -10,7 +10,7 @@ import copy
 from model import Basic
 from mpcm import MPCM
 from ql_mpcm import QL_MPCM
-# from bidaf import BiDAF
+from bidaf import BiDAF
 from time import gmtime, strftime
 from dataset import read_data, build_dict, load_glove, preprocess
 from run import run_epoch
@@ -39,9 +39,11 @@ flags.DEFINE_boolean("sample_params", False, "True to sample parameters")
 flags.DEFINE_boolean("early_stop", False, "True to make early stop")
 flags.DEFINE_boolean("load", False, "True to load model")
 flags.DEFINE_boolean("train", True, "True to train model")
+flags.DEFINE_boolean("summarize", False, "True to have summarization")
 flags.DEFINE_boolean("embed_trainable", False, "True to optimize embedded words")
 flags.DEFINE_string("load_name", "m100_300d6B", "load model name")
 flags.DEFINE_string("model_name", "none", "Replaced by load_name or auto-named")
+flags.DEFINE_string("ymdhm", "none", "Model index (ymdhM)")
 flags.DEFINE_string("mode", "q", "b: basic, m: mpcm, q: ql_mpcm")
 
 # MPCM settings
@@ -50,7 +52,7 @@ flags.DEFINE_integer("dim_perspective", 20, "Maximum number of perspective (20)"
 # Paraphrase settings
 flags.DEFINE_integer("num_paraphrase", 1, "Maximum number of question paraphrasing")
 flags.DEFINE_integer("num_action", 2, "Number of action space.")
-flags.DEFINE_float("init_exp", 0.5, "Initial exploration prob")
+flags.DEFINE_float("init_exp", 0.0, "Initial exploration prob")
 flags.DEFINE_float("final_exp", 0.0, "Final exploration prob")
 flags.DEFINE_boolean("train_pp_only", True, "True to train paraphrase only")
 
@@ -63,8 +65,7 @@ flags.DEFINE_string('answer_func', 'linear', 'answer logit func [linear]')
 
 # Path settings
 flags.DEFINE_string('checkpoint_dir', './result/ckpt/', 'Checkpoint directory')
-flags.DEFINE_string('train_writer_dir', './result/summary/train', 'train writer')
-flags.DEFINE_string('valid_writer_dir', './result/summary/valid', 'valid writer')
+flags.DEFINE_string('summary_writer_dir', './result/summary/', 'summary writer')
 flags.DEFINE_string('train_path', './data/train-v1.1.json', 'Training dataset path')
 flags.DEFINE_string('dev_path', './data/dev-v1.1.json',  'Development dataset path')
 flags.DEFINE_string('pred_path', './result/dev-v1.1-pred.json', 'Pred output path')
@@ -191,12 +192,13 @@ def main(_):
             params = copy.deepcopy(saved_params)
 
         # Model name settings
+        ymdhm = datetime.datetime.now().strftime('%Y%m%d%H%M') 
+        params['ymdhm'] = ymdhm
         if params['load']:
             params['model_name'] = params['load_name']
         else:
-            ymdhm = datetime.datetime.now().strftime('%Y%m%d%H%M') 
             params['model_name'] = '%s%d_%s_%d' % (params['mode'],
-                    params['context_maxlen'], ymdhm, model_idx)
+                    params['context_maxlen'], params['ymdhm'], model_idx)
         
         print('\nModel_%d paramter set' % (model_idx))
         pprint.PrettyPrinter().pprint(params)

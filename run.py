@@ -190,10 +190,11 @@ def run_epoch(model, dataset, epoch, base_iter, idx2word, params, is_train=True)
                         pp_advantage[pp_idx] += advantage
                         pp_cnt += 1
                     
-                    if is_train:
-                        model.train_writer.add_summary(summary, base_iter + pp_cnt)
-                    else:
-                        model.valid_writer.add_summary(summary, base_iter + pp_cnt)
+                    if params['summarize']:
+                        if is_train:
+                            model.train_writer.add_summary(summary, base_iter + pp_cnt)
+                        else:
+                            model.valid_writer.add_summary(summary, base_iter + pp_cnt)
                 
                 # Print intermediate result
                 if dataset_idx % 5 == 0:
@@ -205,7 +206,7 @@ def run_epoch(model, dataset, epoch, base_iter, idx2word, params, is_train=True)
                     _progress += " progress: %d/%d, lr: %.5f, ep: %d" %(
                             dataset_idx, len(dataset), lr, epoch)
                     if 'q' == params['mode']:
-                        _progress += " adv: %.3f\n" % (advantage)
+                        _progress += " adv: %.3f" % (advantage)
                     sys.stdout.write(_progress)
                     sys.stdout.flush()
                     

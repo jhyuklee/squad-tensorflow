@@ -28,8 +28,25 @@ class QL_MPCM(MPCM):
             self.paraphrases.append(tf.placeholder(tf.int32, 
                 [None, params['question_maxlen']]))
         super(QL_MPCM, self).__init__(params, initializer)
+
+    def candidate_layer(self):
+        c_sim = tf.argmax(tf.transpose(self.similarity, [0, 2, 1]), axis=2)
+        selected_context = tf.scan(lambda a, x: tf.gather(x[0], x[1]),
+                (self.context, c_sim), 
+                tf.zeros([self.question_maxlen], dtype=tf.int32))
+        
+        selected_embed = dropout(embedding_lookup(
+                inputs=selected_context,
+                voca_size=self.voca_size,
+                embedding_dim=self.dim_embed_word, 
+                initializer=self.initializer, 
+                trainable=self.embed_trainable,
+                reuse=True, scope='Word'), self.embed_dropout)
+
+        return selected_embed
     
-    def paraphrase_layer(self, question, c_state, length, max_length, reuse=None):
+    def paraphrase_layer(self, question, c_state, length, max_length, 
+            candidate=None, reuse=None):
         with tf.variable_scope('Paraphrase_Layer', reuse=reuse) as scope:
             weights = tf.get_variable('out_w', 
                     [self.dim_rnn_cell * 2, self.num_action],
@@ -37,6 +54,12 @@ class QL_MPCM(MPCM):
             biases = tf.get_variable('out_b', 
                     [self.num_action],                 
                     initializer=tf.constant_initializer(0.0))
+            
+            # Concat question and context [q, c_sim]
+            if candidate is not None:
+                print('before question', question)
+                question = tf.concat(axis=2, values=[question, candidate])
+                print('question concat', question)
            
             # Bidirectional
             fw_cell = lstm_cell(self.dim_rnn_cell, self.rnn_layer, self.rnn_dropout)
@@ -74,8 +97,8 @@ class QL_MPCM(MPCM):
         # print([p.name for p in self.policy_params])
 
         reg_loss = tf.reduce_sum(
-                [tf.reduce_sum(tf.square(x)) for x in self.policy_params])
-        total_loss = policy_loss + reg_loss * 0.001
+                [tf.reduce_sum(tf.square(x)) for x in self.policy_params]) * 0.001
+        total_loss = pg_loss + reg_loss
 
         """
         def per_batch_grad(loss, adv):
@@ -98,7 +121,7 @@ class QL_MPCM(MPCM):
 
         for i, (grad, var) in enumerate(self.policy_gradients):
             if grad is not None:
-                grad = tf.clip_by_norm(grad, self.max_grad_norm)
+                # grad = tf.clip_by_norm(grad, self.max_grad_norm)
                 self.policy_gradients[i] = (grad * advantage, var)
 
         optimize = self.optimizer.apply_gradients(self.policy_gradients,
@@ -132,9 +155,11 @@ class QL_MPCM(MPCM):
         end_logits = []
         for pp_idx in range(self.num_paraphrase + 1):
             if pp_idx > 0:
+                candidate = self.candidate_layer()
                 _, action_logit = self.paraphrase_layer(
                         question_rep, c_state,
-                        self.question_len, self.question_maxlen, reuse=(pp_idx>1))
+                        self.question_len, self.question_maxlen, 
+                        candidate=candidate, reuse=(pp_idx>1))
                 print('# Paraphrase_layer %d' % (pp_idx), action_logit)
                 paraphrased = self.paraphrases[pp_idx-1]
                 self.action_probs.append(tf.nn.softmax(action_logit))

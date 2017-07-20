@@ -19,8 +19,8 @@ class MPCM(Basic):
             n_context = context / tf.expand_dims(c_norm, -1)
             n_question = question / tf.expand_dims(q_norm, -1)
             tr_question = tf.transpose(n_question, [0, 2, 1])
-            similarity = tf.matmul(n_context, tr_question)
-            max_similarity = tf.reduce_max(similarity, 2, keep_dims=True)
+            self.similarity = tf.matmul(n_context, tr_question)
+            max_similarity = tf.reduce_max(self.similarity, 2, keep_dims=True)
             return tf.multiply(context, max_similarity)
 
     def representation_layer(self, inputs, length, max_length, scope=None, reuse=None):

@@ -18,6 +18,7 @@ class Basic(object):
         self.session = tf.Session(config=config)
         self.params = params
         self.model_name = params['model_name']
+        self.ymdhm = params['ymdhm']
 
         # rnn parameters
         self.max_grad_norm = params['max_grad_norm']
@@ -31,8 +32,7 @@ class Basic(object):
         self.dim_output = params['dim_output']
         self.embed_trainable = params['embed_trainable']
         self.checkpoint_dir = params['checkpoint_dir']
-        self.train_writer_dir = params['train_writer_dir']
-        self.valid_writer_dir = params['valid_writer_dir']
+        self.summary_writer_dir = params['summary_writer_dir']
         self.initializer, self.dictionary = initializer
 
         # input data placeholders
@@ -183,8 +183,11 @@ class Basic(object):
         self.saver = tf.train.Saver(model_vars)
         self.merged_summary = tf.summary.merge_all()
         # could add self.session.graph
-        self.train_writer = tf.summary.FileWriter(self.train_writer_dir) 
-        self.valid_writer = tf.summary.FileWriter(self.valid_writer_dir) 
+        if self.params['summarize']:
+            self.train_writer = tf.summary.FileWriter(
+                    self.summary_writer_dir + self.ymdhm + '/train') 
+            self.valid_writer = tf.summary.FileWriter(
+                    self.summary_writer_dir + self.ymdhm + '/valid') 
 
     @staticmethod
     def reset_graph():
