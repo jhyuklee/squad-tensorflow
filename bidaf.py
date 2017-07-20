@@ -47,10 +47,9 @@ class BiDAF(Basic):
     
     def attention_flow_layer(self, h, u, reuse=None):
         with tf.variable_scope("Attention_Flow_Layer", reuse=reuse) as scope:
-            JX = tf.shape(h)[2]
-            M = tf.shape(h)[1]
-            JQ = tf.shape(u)[1]
-            
+            JX = self.context_maxlen
+            M = 1
+            JQ = self.question_maxlen
             h_aug = tf.tile(tf.expand_dims(h, 3), [1, 1, 1, JQ, 1])
             u_aug = tf.tile(tf.expand_dims(tf.expand_dims(u, 1), 1), [1, M, JX, 1, 1])
 
@@ -87,7 +86,7 @@ class BiDAF(Basic):
     def output_layer(self, p0, g1, reuse=None):
         with tf.variable_scope("Output_Layer", reuse=reuse) as scope:
             N = tf.shape(p0)[0]
-            M = tf.shape(p0)[1]
+            M = 1
             JX = self.context_maxlen
             JQ = self.question_maxlen
             d = self.dim_embed_word
@@ -109,17 +108,17 @@ class BiDAF(Basic):
                                 wd=self.wd, input_keep_prob=self.input_keep_prob,
                                  is_train=self.is_train, 
                                  func=self.answer_func, scope='logits2')
-
+            
             flat_logits = tf.reshape(logits, [-1, M * JX])
             flat_yp = tf.nn.softmax(flat_logits)  # [-1, M*JX]
-            yp = tf.reshape(flat_yp, [-1, M, JX])
             flat_logits2 = tf.reshape(logits2, [-1, M * JX])
             flat_yp2 = tf.nn.softmax(flat_logits2)
-                
+
             yp = tf.reshape(flat_yp, [-1, M, JX])
             yp2 = tf.reshape(flat_yp2, [-1, M, JX])
             wyp = tf.nn.sigmoid(logits2)
 
+            print("yp 1,2 : ", yp, yp2)
             self.yp = yp
             self.yp2 = yp2
             self.wyp = wyp
@@ -180,9 +179,6 @@ class BiDAF(Basic):
                 trainable=self.embed_trainable,
                 reuse=True, scope='Word'), self.embed_dropout)
         
-        self.N = context_embed.get_shape().as_list()[0]
-        self.JX = context_embed.get_shape().as_list()[1]
-        self.JQ = question_embed.get_shape().as_list()[1]
         self.con_len = tf.expand_dims(self.context_len, 1)
         #context_embed = tf.expand_dims(context_embed, 1)
         #context_embed = tf.Print(context_embed, [context_embed], "context_embed")
