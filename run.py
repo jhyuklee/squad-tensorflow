@@ -90,17 +90,18 @@ def run_paraphrase(question, question_len, context_raws, context_len,
     baselines = np.sum([baseline_em, baseline_f1], axis=0)
     feed_dict[model.rewards[pp_idx]] = rewards
     feed_dict[model.baselines[pp_idx]] = baselines
-    _, pp_loss = sess.run([
+    _, pp_loss, summary = sess.run([
         model.pp_optimize[pp_idx] if is_train else model.no_op,
-        model.pp_loss[pp_idx]], feed_dict=feed_dict)
+        model.pp_loss[pp_idx], model.merged_summary], feed_dict=feed_dict)
+
     advantage = np.sum(rewards - baselines)
     pp_em = np.sum(em_s) / len(question)
     pp_f1 = np.sum(f1_s) / len(question)
 
-    return pp_em, pp_f1, pp_loss, advantage
+    return pp_em, pp_f1, pp_loss, advantage, summary
 
 
-def run_epoch(model, dataset, epoch, idx2word, params, is_train=True):
+def run_epoch(model, dataset, epoch, base_iter, idx2word, params, is_train=True):
     print('### Training ###' if is_train else '\n### Testing ###')
     sess = model.session
     batch_size = params['batch_size']
@@ -175,7 +176,7 @@ def run_epoch(model, dataset, epoch, idx2word, params, is_train=True):
                 baseline_f1 = f1
                 if 'q' == params['mode']:
                     for pp_idx in range(params['num_paraphrase']):
-                        tmp_em, tmp_f1, tmp_loss, advantage = run_paraphrase(
+                        tmp_em, tmp_f1, tmp_loss, advantage, summary = run_paraphrase(
                                 batch_question,
                                 batch_question_len,
                                 context_raws,
@@ -188,8 +189,11 @@ def run_epoch(model, dataset, epoch, idx2word, params, is_train=True):
                         pp_losses[pp_idx] += tmp_loss
                         pp_advantage[pp_idx] += advantage
                         pp_cnt += 1
-                        
-                    # TODO: anneal exploration prob
+                    
+                    if is_train:
+                        model.train_writer.add_summary(summary, base_iter + pp_cnt)
+                    else:
+                        model.valid_writer.add_summary(summary, base_iter + pp_cnt)
                 
                 # Print intermediate result
                 if dataset_idx % 5 == 0:
@@ -215,6 +219,7 @@ def run_epoch(model, dataset, epoch, idx2word, params, is_train=True):
                 context_raws = []
                 question_raws = []
 
+
     # Average result
     total_em /= total_cnt
     total_f1 /= total_cnt
@@ -223,6 +228,7 @@ def run_epoch(model, dataset, epoch, idx2word, params, is_train=True):
         total_loss, total_em, total_f1))
 
     if 'q' in params['mode']:
+        model.anneal_exploration()
         pp_em[0] /= pp_cnt
         pp_f1[0] /= pp_cnt
         pp_losses[0] /= pp_cnt
@@ -230,5 +236,5 @@ def run_epoch(model, dataset, epoch, idx2word, params, is_train=True):
         print('Paraphrase loss: %.3f, em: %.3f, f1: %.3f, adv: %.3f' % (
             pp_losses[0], pp_em[0], pp_f1[0], pp_advantage[0]))
 
-    return total_em, total_f1, total_loss
+    return total_em, total_f1, total_loss, pp_cnt + base_iter
 

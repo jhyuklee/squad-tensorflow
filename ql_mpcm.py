@@ -56,19 +56,16 @@ class QL_MPCM(MPCM):
         reward = self.rewards[paraphrase_cnt]
         baseline = self.baselines[paraphrase_cnt]
         taken_action = self.taken_actions[paraphrase_cnt]
-        # Mask actions with action length
 
-        # Add regularizer? (reg_loss)
-        q_mask = tf.cast(tf.sequence_mask(self.question_len, self.question_maxlen),
-                tf.float32)
+        # Add regularizer maybe (reg_loss)
         pg_loss = tf.contrib.seq2seq.sequence_loss(
                 logits=action_logit,
                 targets=taken_action,
-                weights=q_mask,
-                average_across_batch=False)
+                weights=self.question_mask,
+                average_across_batch=True)
 
         # Per batch advantage is straight forward..
-        advantage = tf.reduce_sum(reward - baseline) 
+        advantage = reward - baseline
        
         # Optimize only paraphrase module
         self.policy_params = [p for p in tf.trainable_variables()
@@ -76,19 +73,50 @@ class QL_MPCM(MPCM):
                 # or ('Representation_Layer' in p.name))]
         # print([p.name for p in self.policy_params])
 
-        self.policy_gradients = self.optimizer.compute_gradients(pg_loss, 
+        reg_loss = tf.reduce_sum(
+                [tf.reduce_sum(tf.square(x)) for x in self.policy_params])
+        total_loss = policy_loss + reg_loss * 0.001
+
+        """
+        def per_batch_grad(loss, adv):
+            grads = self.optimizer.compute_gradients(loss, var_list=self.policy_params)
+            for i, (grad, var) in enumerate(grads):
+                if grad is not None:
+                    self.policy_gradients[i] = (
+                            self.policy_gradients[i][0] + grad * adv, var)
+            return tf.no_op()
+        
+        self.policy_gradients = [(tf.zeros([]), None)] * 6 
+        init = tf.no_op()
+        tf.scan(lambda a, x: per_batch_grad(x[0], x[1]), (pg_loss, advantage), init)
+        print('after scan', len(self.policy_gradients), self.policy_gradients)
+
+        """
+        self.policy_gradients = self.optimizer.compute_gradients(total_loss,
                 var_list=self.policy_params)
+        advantage = tf.reduce_mean(advantage)
 
         for i, (grad, var) in enumerate(self.policy_gradients):
             if grad is not None:
-                # grad = tf.clip_by_global_norm(grad, self.max_grad_norm)
+                grad = tf.clip_by_norm(grad, self.max_grad_norm)
                 self.policy_gradients[i] = (grad * advantage, var)
 
         optimize = self.optimizer.apply_gradients(self.policy_gradients,
                 global_step=self.global_step)
 
         self.pp_optimize.append(optimize)
-        self.pp_loss.append(pg_loss)
+        self.pp_loss.append(tf.reduce_mean(total_loss))
+        
+        for grad, var in self.policy_gradients:
+            tf.summary.histogram(var.name, var)
+            if grad is not None:
+                tf.summary.histogram(var.name + '/gradients', grad)
+        tf.summary.scalar('policy loss', pg_loss)
+        tf.summary.scalar('reg loss', reg_loss)
+        tf.summary.scalar('total loss', total_loss)
+        tf.summary.scalar('advantage', advantage)
+        tf.summary.scalar('reward', tf.reduce_mean(reward))
+        tf.summary.scalar('baseline', tf.reduce_mean(baseline))
 
     def build_model(self):
         print("Question Learning Model")
@@ -153,4 +181,9 @@ class QL_MPCM(MPCM):
                 general_params = [p for p in tf.trainable_variables() 
                         if 'Paraphrase_Layer' not in p.name]
                 self.optimize_loss(self.start_logits, self.end_logits, general_params)
+
+    def anneal_exploration(self):
+        if self.exploration > 0:
+            self.exploration -= 0.1
+        print('exploration annealed to %.1f' % self.exploration)
 

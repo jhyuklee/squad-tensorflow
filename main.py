@@ -40,7 +40,7 @@ flags.DEFINE_boolean("early_stop", False, "True to make early stop")
 flags.DEFINE_boolean("load", False, "True to load model")
 flags.DEFINE_boolean("train", True, "True to train model")
 flags.DEFINE_boolean("embed_trainable", False, "True to optimize embedded words")
-flags.DEFINE_string("load_name", "m100_300d6B_l", "load model name")
+flags.DEFINE_string("load_name", "m100_300d6B", "load model name")
 flags.DEFINE_string("model_name", "none", "Replaced by load_name or auto-named")
 flags.DEFINE_string("mode", "q", "b: basic, m: mpcm, q: ql_mpcm")
 
@@ -63,6 +63,8 @@ flags.DEFINE_string('answer_func', 'linear', 'answer logit func [linear]')
 
 # Path settings
 flags.DEFINE_string('checkpoint_dir', './result/ckpt/', 'Checkpoint directory')
+flags.DEFINE_string('train_writer_dir', './result/summary/train', 'train writer')
+flags.DEFINE_string('valid_writer_dir', './result/summary/valid', 'valid writer')
 flags.DEFINE_string('train_path', './data/train-v1.1.json', 'Training dataset path')
 flags.DEFINE_string('dev_path', './data/dev-v1.1.json',  'Development dataset path')
 flags.DEFINE_string('pred_path', './result/dev-v1.1-pred.json', 'Pred output path')
@@ -81,19 +83,20 @@ def run(model, params, train_dataset, dev_dataset, idx2word):
     test_epoch = params['test_epoch']
     init_lr = params['learning_rate']
     early_stop = params['early_stop']
+    train_iter = valid_iter = 0
 
     for epoch_idx in range(train_epoch):
         if params['train']:
             start_time = datetime.datetime.now()
             print("\n[Epoch %d]" % (epoch_idx + 1))
-            run_epoch(model, train_dataset, epoch_idx + 1, 
-                    idx2word, params, is_train=True)
+            _, _, _, train_iter = run_epoch(model, train_dataset, epoch_idx + 1, 
+                    train_iter, idx2word, params, is_train=True)
             elapsed_time = datetime.datetime.now() - start_time
             print('Epoch %d Done in %s' % (epoch_idx + 1, elapsed_time))
         
         if (epoch_idx + 1) % test_epoch == 0:
-            em, f1, loss = run_epoch(model, dev_dataset, 0, idx2word, 
-                    params, is_train=False)
+            em, f1, loss, valid_iter = run_epoch(model, dev_dataset, 0, 
+                    valid_iter, idx2word, params, is_train=False)
             
             if max_f1 > f1 - 1e-2 and epoch_idx > 0 and early_stop:
                 print('Max em: %.3f, f1: %.3f, epoch: %d' % (max_em, max_f1, max_ep))

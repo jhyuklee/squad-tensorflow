@@ -31,6 +31,8 @@ class Basic(object):
         self.dim_output = params['dim_output']
         self.embed_trainable = params['embed_trainable']
         self.checkpoint_dir = params['checkpoint_dir']
+        self.train_writer_dir = params['train_writer_dir']
+        self.valid_writer_dir = params['valid_writer_dir']
         self.initializer, self.dictionary = initializer
 
         # input data placeholders
@@ -46,6 +48,10 @@ class Basic(object):
         self.learning_rate = tf.placeholder(tf.float32)
 
         # model settings
+        self.context_mask = tf.sequence_mask(self.context_len, 
+                self.context_maxlen, dtype=tf.float32)
+        self.question_mask = tf.sequence_mask(self.question_len, 
+                self.question_maxlen, dtype=tf.float32)
         self.global_step = tf.Variable(0, name="step", trainable=False)
         self.optimizer = tf.train.AdamOptimizer(self.learning_rate)
         self.no_op = tf.no_op()
@@ -144,9 +150,15 @@ class Basic(object):
     def initialize_embedding(self, word_embed):
         with tf.variable_scope("Word"):
             word_embeddings = tf.get_variable("embed",
-                                              initializer=tf.constant(word_embed),
-                                              trainable=self.embed_trainable,
-                                              dtype=tf.float32)
+                    initializer=tf.constant(word_embed),
+                    trainable=self.embed_trainable,
+                    dtype=tf.float32)
+
+    def apply_mask(self, target, mask):
+        if len(target.get_shape()) > len(mask.get_shape()):
+            while len(mask.get_shape()) != len(target.get_shape()):
+                mask = tf.expand_dims(mask, -1)
+        return tf.multiply(target, mask)
 
     def save_settings(self):
         print('trainable variables', [var.name for var in tf.trainable_variables()])
@@ -170,7 +182,9 @@ class Basic(object):
         model_vars = [v for v in tf.trainable_variables()]
         self.saver = tf.train.Saver(model_vars)
         self.merged_summary = tf.summary.merge_all()
-        # self.graph_writer = tf.summary.FileWriter(self.checkpoint_dir,self.session.graph)
+        # could add self.session.graph
+        self.train_writer = tf.summary.FileWriter(self.train_writer_dir) 
+        self.valid_writer = tf.summary.FileWriter(self.valid_writer_dir) 
 
     @staticmethod
     def reset_graph():
