@@ -40,7 +40,7 @@ flags.DEFINE_boolean("early_stop", False, "True to make early stop")
 flags.DEFINE_boolean("load", False, "True to load model")
 flags.DEFINE_boolean("train", True, "True to train model")
 flags.DEFINE_boolean("embed_trainable", False, "True to optimize embedded words")
-flags.DEFINE_string("load_name", "m100_300d6B2", "load model name")
+flags.DEFINE_string("load_name", "m100_300d6B_l", "load model name")
 flags.DEFINE_string("model_name", "none", "Replaced by load_name or auto-named")
 flags.DEFINE_string("mode", "q", "b: basic, m: mpcm, q: ql_mpcm")
 
@@ -50,12 +50,14 @@ flags.DEFINE_integer("dim_perspective", 20, "Maximum number of perspective (20)"
 # Paraphrase settings
 flags.DEFINE_integer("num_paraphrase", 1, "Maximum number of question paraphrasing")
 flags.DEFINE_integer("num_action", 2, "Number of action space.")
+flags.DEFINE_float("init_exp", 0.5, "Initial exploration prob")
+flags.DEFINE_float("final_exp", 0.0, "Final exploration prob")
 flags.DEFINE_boolean("train_pp_only", True, "True to train paraphrase only")
 
 # Bidaf settings
 flags.DEFINE_float("input_keep_prob", 0.8, "Input keep prob of LSTM weights [0.8]")
 flags.DEFINE_float("wd", 0.0, "L2 weight decay for regularization [0.0]")
-flags.DEFINE_boolean("share_lstm_weights", True, "Share preprocessed LSTM weights [True]")
+flags.DEFINE_boolean("share_lstm_weights", True, "Share LSTM weights [True]")
 flags.DEFINE_string('logit_func', 'tri_linear', 'logit func [tri_linear]')
 flags.DEFINE_string('answer_func', 'linear', 'answer logit func [linear]')
 
@@ -84,7 +86,8 @@ def run(model, params, train_dataset, dev_dataset, idx2word):
         if params['train']:
             start_time = datetime.datetime.now()
             print("\n[Epoch %d]" % (epoch_idx + 1))
-            run_epoch(model, train_dataset, epoch_idx + 1, idx2word, params, is_train=True)
+            run_epoch(model, train_dataset, epoch_idx + 1, 
+                    idx2word, params, is_train=True)
             elapsed_time = datetime.datetime.now() - start_time
             print('Epoch %d Done in %s' % (epoch_idx + 1, elapsed_time))
         
@@ -93,11 +96,12 @@ def run(model, params, train_dataset, dev_dataset, idx2word):
                     params, is_train=False)
             
             if max_f1 > f1 - 1e-2 and epoch_idx > 0 and early_stop:
-                print('Max f1: %.3f, em: %.3f, epoch: %d' % (max_f1, max_em, max_ep))
+                print('Max em: %.3f, f1: %.3f, epoch: %d' % (max_em, max_f1, max_ep))
                 es_cnt += 1
                 if es_cnt > 3:
                     print('\nEarly stopping')
-                    print('Max f1: %.3f, em: %.3f, epoch: %d' % (max_f1, max_em, max_ep))
+                    print('Max em: %.3f, f1: %.3f, epoch: %d' % (
+                        max_em, max_f1, max_ep))
                     break
                 else: 
                     # Learning rate decay exponentially
@@ -109,14 +113,14 @@ def run(model, params, train_dataset, dev_dataset, idx2word):
                 max_ep = max_ep if max_em > em else (epoch_idx + 1)
                 max_em = max_em if max_em > em else em 
                 max_f1 = max_f1 if max_f1 > f1 else f1
-                print('Max f1: %.3f, em: %.3f, epoch: %d' % (max_f1, max_em, max_ep))
+                print('Max em: %.3f, f1: %.3f, epoch: %d' % (max_em, max_f1, max_ep))
                 
                 if params['save']:
                     model.save(params['checkpoint_dir'])
     
     model.reset_graph()
     params['learning_rate'] = init_lr
-    return max_f1, max_em, max_ep
+    return max_em, max_f1, max_ep
 
 
 def sample_parameters(params):
@@ -127,7 +131,7 @@ def sample_parameters(params):
     return params
 
 
-def write_result(params, f1, em, ep):
+def write_result(params, em, f1, ep):
     f = open(params['validation_path'], 'a')
     f.write('Model %s\n' % params['model_name'])
     f.write('learning_rate / dim_rnn_cell / batch_size / ' + 
@@ -136,8 +140,8 @@ def write_result(params, f1, em, ep):
         params['dim_rnn_cell'], params['batch_size'],
         params['dim_perspective'],
         params['dim_embed_word'], params['context_maxlen']))
-    f.write('F1 / EM / EP\n')
-    f.write('[%.3f / %.3f / %d]\n\n' % (f1, em, ep))
+    f.write('EM / F1 / EP\n')
+    f.write('[%.3f / %.3f / %d]\n\n' % (em, f1, ep))
     f.close()
 
 
@@ -208,8 +212,8 @@ def main(_):
         if params['load']:
             my_model.load(params['checkpoint_dir'])
        
-        f1, em, max_ep = run(my_model, params, train_dataset, dev_dataset, idx2word)
-        write_result(params, f1, em, max_ep)
+        em, f1, max_ep = run(my_model, params, train_dataset, dev_dataset, idx2word)
+        write_result(params, em, f1, max_ep)
 
         if not saved_params['sample_params']:
             break

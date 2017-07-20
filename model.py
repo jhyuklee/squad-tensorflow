@@ -48,6 +48,7 @@ class Basic(object):
         # model settings
         self.global_step = tf.Variable(0, name="step", trainable=False)
         self.optimizer = tf.train.AdamOptimizer(self.learning_rate)
+        self.no_op = tf.no_op()
         self.initialize_embedding(self.initializer)
 
         # build model
@@ -176,12 +177,12 @@ class Basic(object):
         tf.reset_default_graph()
 
     def save(self, checkpoint_dir):
-        file_name = "%s.model" % self.model_name
+        file_name = "%s" % self.model_name
         self.saver.save(self.session, os.path.join(checkpoint_dir, file_name))
         print("Model saved", file_name)
 
     def load(self, checkpoint_dir):
-        file_name = "%s.model" % self.model_name
+        file_name = "%s" % self.model_name
         self.loader.restore(self.session, os.path.join(checkpoint_dir, file_name))
         print("Model loaded", file_name)
 

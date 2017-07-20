@@ -45,6 +45,7 @@ def load_glove(dictionary, params):
     word2idx = {}
     idx2word = {}
     unk_cnt = 0
+    np.random.seed(253)
     unknown_vector = np.random.uniform(-1, 1, params['dim_embed_word'])
     word2idx['UNK'] = len(word2idx)
     word2idx['PAD'] = len(word2idx)
@@ -67,7 +68,7 @@ def load_glove(dictionary, params):
 
 
 def tokenize(words):
-    result = [token.replace("''", '"').replace("``", '"') 
+    result = [token.replace("''", '"').replace("``", '"').lower() 
             for token in nltk.word_tokenize(words)]
     return result
 

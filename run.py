@@ -4,19 +4,30 @@ import numpy as np
 from evaluate import *
 from utils import *
 
-def run_paraphrase(question, question_len, context_raws, context_len, ground_truths,
-        sim_mat, baseline_em, baseline_f1, pp_idx, model, feed_dict, params, is_train):
+def run_paraphrase(question, question_len, context_raws, context_len, 
+        ground_truths, sim_mat, baseline_em, baseline_f1, pp_idx, idx2word, 
+        model, feed_dict, params, is_train):
 
-    sess = model.session
-    action_sample = sess.run(
-            model.action_samples[pp_idx],
-            feed_dict=feed_dict)
     idx2action = {
             0: 'NONE',
             1: 'DEL',
             2: 'INS',
             3: 'SUB'
     }
+    sess = model.session
+    action_prob = sess.run(
+            model.action_probs[pp_idx],
+            feed_dict=feed_dict)
+
+    taken_action = []
+    for batch_action in action_prob:
+        actions = []
+        for prob in batch_action:
+            if np.random.random() < model.exploration:
+                actions.append(np.random.randint(model.num_action))
+            else:
+                actions.append(np.argmax(np.random.multinomial(1, prob)))
+        taken_action.append(actions)
 
     def paraphrase_question(sentence, length, actions):
         new_sentence = []
@@ -43,37 +54,46 @@ def run_paraphrase(question, question_len, context_raws, context_len, ground_tru
             new_sentence.append(1) # PAD token
 
         # dprint('\nOriginal %s'% sentence[:length], params['debug'])
-        # dprint('Rules %s'% 
-        #         (' '.join([idx2action[idx] for idx in actions[:length]])),
-        #         params['debug'])
         # dprint('Paraphrase %s'% new_sentence[:length], params['debug'])
         return new_sentence
    
-    # Get paraphrased question according to the action_sample
+    # Get paraphrased question according to the taken_action
     paraphrased_q = []
-    for org_q, org_q_len, action in zip(question, question_len, action_sample):
+    for org_q, org_q_len, action in zip(question, question_len, taken_action):
         paraphrased_q.append(paraphrase_question(org_q, org_q_len, action))
 
     # Get scores for paraphrased question
     feed_dict[model.paraphrases[pp_idx]] = np.array(paraphrased_q)
+    feed_dict[model.taken_actions[pp_idx]] = np.array(taken_action)
     ps_logits, pe_logits = sess.run(model.pp_logits[pp_idx], feed_dict=feed_dict)
     predictions = pred_from_logits(ps_logits, pe_logits,
             context_len, context_raws, params)
     em_s, f1_s = em_f1_score(predictions, ground_truths, params)
-    dprint('paraphrased em %s' % em_s, params['debug'])
+
+    # TODO: debug paraphrase
+    dprint('\nparaphrased em %s' % em_s, params['debug'])
     dprint('baeline em %s' % baseline_em, params['debug'])
-    dprint('advantage em %s' % baseline_em, params['debug'])
+    dprint('advantage em %s' % (em_s - baseline_em), params['debug'])
+    max_idx = np.argmax(em_s - baseline_em)
+    dprint('max idx: %d, em: %.3f, f1: %.3f' % (
+        max_idx, em_s[max_idx], f1_s[max_idx]), params['debug'])
+    dprint('\nRules %s'% (' '.join([idx2action[idx]
+                for idx in taken_action[max_idx][:question_len[max_idx]]])), 
+                params['debug'])
+    dprint('original %s' % [idx2word[w] 
+        for w in question[max_idx][:question_len[max_idx]]], params['debug'])
+    dprint('changed %s' % [idx2word[w] 
+        for w in paraphrased_q[max_idx][:question_len[max_idx]]], params['debug'])
    
     # Use REINFORE with original em, f1 as baseline
     rewards = np.sum([em_s, f1_s], axis=0)
-    feed_dict[model.rewards[pp_idx]] = rewards
     baselines = np.sum([baseline_em, baseline_f1], axis=0)
+    feed_dict[model.rewards[pp_idx]] = rewards
     feed_dict[model.baselines[pp_idx]] = baselines
     _, pp_loss = sess.run([
-        model.pp_optimize[pp_idx] if is_train else model.pp_loss[pp_idx],
+        model.pp_optimize[pp_idx] if is_train else model.no_op,
         model.pp_loss[pp_idx]], feed_dict=feed_dict)
     advantage = np.sum(rewards - baselines)
-    
     pp_em = np.sum(em_s) / len(question)
     pp_f1 = np.sum(f1_s) / len(question)
 
@@ -87,7 +107,7 @@ def run_epoch(model, dataset, epoch, idx2word, params, is_train=True):
     mini_batch = []
     ground_truths = []
     context_raws = []
-    question_raws = []  # Not used with idx2word
+    question_raws = []  # Not used 
     total_loss = total_f1 = total_em = total_cnt = 0
     pp_em = [0] * params['num_paraphrase']
     pp_f1 = [0] * params['num_paraphrase']
@@ -99,7 +119,7 @@ def run_epoch(model, dataset, epoch, idx2word, params, is_train=True):
         context = dataset_item['c']
         context_raw = dataset_item['c_raw']
         context_len = dataset_item['c_len']
-        for qa in dataset_item['qa']:
+        for qa_idx, qa in enumerate(dataset_item['qa']):
             question = qa['q']
             question_len = qa['q_len']
             question_raw = qa['q_raw']
@@ -113,7 +133,8 @@ def run_epoch(model, dataset, epoch, idx2word, params, is_train=True):
             question_raws.append(question_raw)
            
             # Run and clear mini-batch
-            if (len(mini_batch) == batch_size) or (dataset_idx == len(dataset) - 1):
+            if (len(mini_batch) == batch_size) or ((dataset_idx == len(dataset) - 1) 
+                    and (qa_idx == len(dataset_item['qa']) - 1)):
                 batch_context = np.array([b[0] for b in mini_batch])
                 batch_context_len = np.array([b[1] for b in mini_batch])
                 batch_question = np.array([b[2] for b in mini_batch])
@@ -139,22 +160,19 @@ def run_epoch(model, dataset, epoch, idx2word, params, is_train=True):
                     feed_dict[model.embed_dropout] = 1.0
 
                 # do not train when 'pp_only'
-                if not (params['mode'] == 'q' and params['train_pp_only']) and is_train:
-                    sess.run(model.optimize, feed_dict=feed_dict)
-                
-                loss, start_logits, end_logits, lr = sess.run(
+                loss, start_logits, end_logits, lr, _ = sess.run(
                         [model.loss, model.start_logits, model.end_logits, 
-                            model.learning_rate], feed_dict=feed_dict)
+                            model.learning_rate,
+                            model.optimize
+                            if not (params['mode'] == 'q' and params['train_pp_only'])
+                            and is_train else model.no_op], feed_dict=feed_dict)
                 
                 predictions = pred_from_logits(start_logits, 
                         end_logits, batch_context_len, context_raws, params)
                 em, f1 = em_f1_score(predictions, ground_truths, params)
 
-                # running_em = total_em / (total_cnt + 1e-5)
-                # running_f1 = total_f1 / (total_cnt + 1e-5)
                 baseline_em = em
                 baseline_f1 = f1
-
                 if 'q' == params['mode']:
                     for pp_idx in range(params['num_paraphrase']):
                         tmp_em, tmp_f1, tmp_loss, advantage = run_paraphrase(
@@ -163,13 +181,15 @@ def run_epoch(model, dataset, epoch, idx2word, params, is_train=True):
                                 context_raws,
                                 batch_context_len,
                                 ground_truths, None, # Use similarity matrix
-                                baseline_em, baseline_f1, pp_idx,
+                                baseline_em, baseline_f1, pp_idx, idx2word,
                                 model, feed_dict, params, is_train=is_train)
                         pp_em[pp_idx] += tmp_em
                         pp_f1[pp_idx] += tmp_f1
                         pp_losses[pp_idx] += tmp_loss
                         pp_advantage[pp_idx] += advantage
                         pp_cnt += 1
+                        
+                    # TODO: anneal exploration prob
                 
                 # Print intermediate result
                 if dataset_idx % 5 == 0:
@@ -181,7 +201,7 @@ def run_epoch(model, dataset, epoch, idx2word, params, is_train=True):
                     _progress += " progress: %d/%d, lr: %.5f, ep: %d" %(
                             dataset_idx, len(dataset), lr, epoch)
                     if 'q' == params['mode']:
-                        _progress += " adv: %.3f" % pp_advantage[0] / pp_cnt
+                        _progress += " adv: %.3f\n" % (advantage)
                     sys.stdout.write(_progress)
                     sys.stdout.flush()
                     
@@ -208,7 +228,7 @@ def run_epoch(model, dataset, epoch, idx2word, params, is_train=True):
         pp_losses[0] /= pp_cnt
         pp_advantage[0] /= pp_cnt
         print('Paraphrase loss: %.3f, em: %.3f, f1: %.3f, adv: %.3f' % (
-            pp_losses[0], pp_f1[0], pp_em[0], pp_advantage[0]))
+            pp_losses[0], pp_em[0], pp_f1[0], pp_advantage[0]))
 
     return total_em, total_f1, total_loss
 

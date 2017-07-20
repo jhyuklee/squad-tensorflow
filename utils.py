@@ -36,10 +36,11 @@ def em_f1_score(predictions, ground_truths, params):
                 exact_match_score, prediction, ground_truth)
         single_f1 = metric_max_over_ground_truths(
                 f1_score, prediction, ground_truth)
-
         em.append(single_em)
         f1.append(single_f1)
 
+    em = np.array(em).astype(int)
+    f1 = np.array(f1)
     return em, f1
 
 
