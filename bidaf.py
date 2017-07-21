@@ -157,7 +157,7 @@ class BiDAF(Basic):
         self.d_cell4_bw = SwitchableDropoutWrapper(self.cell4_bw, self.is_train, \
                   input_keep_prob=self.input_keep_prob)
 
-        self.x_mask = tf.sequence_mask(lengths=self.con_len, maxlen=self.context_maxlen)
+        self.x_mask = tf.sequence_mask(lengths=self.context_len, maxlen=self.context_maxlen)
         self.x_mask = tf.expand_dims(self.x_mask, 1)
         self.q_mask = tf.sequence_mask(lengths=self.question_len, maxlen=self.question_maxlen)
         
