@@ -10,14 +10,19 @@ def run_paraphrase(question, question_len, context_raws, context_len,
 
     idx2action = {
             0: 'NONE',
-            1: 'DEL',
-            2: 'INS',
-            3: 'SUB'
+            2: 'DEL',
+            1: 'SUB',
+            3: 'INS'
     }
     sess = model.session
-    action_prob = sess.run(
-            model.action_probs[pp_idx],
+    action_prob, similarity = sess.run(
+            [model.action_probs[pp_idx], model.selected_context],
             feed_dict=feed_dict)
+
+    def softmax(logit):
+        logit = np.exp(logit - np.amax(logit))
+        logit = logit / np.sum(logit)
+        return logit
 
     taken_action = []
     for batch_action in action_prob:
@@ -26,24 +31,26 @@ def run_paraphrase(question, question_len, context_raws, context_len,
             if np.random.random() < model.exploration:
                 actions.append(np.random.randint(model.num_action))
             else:
-                actions.append(np.argmax(np.random.multinomial(1, prob)))
+                actions.append(np.argmax(np.random.multinomial(1, softmax(prob))))
         taken_action.append(actions)
 
-    def paraphrase_question(sentence, length, actions):
+    def paraphrase_question(sentence, length, actions, sim):
         new_sentence = []
         itr = 0
         for idx, act in enumerate(actions):
-            if act == 0: # None
+            if idx2action[act] == 'NONE':
                 new_sentence.append(sentence[itr])
                 itr += 1
-            elif act == 1: # DEL
+            elif idx2action[act] == 'DEL':
                 itr += 1
-            elif act == 2: # INS, TODO: match context
+            elif idx2action[act] == 'SUB':
+                new_sentence.append(sim[itr])
+                itr += 1
+            elif idx2action[act] == 'INS':
                 new_sentence.append(sentence[itr])
+                new_sentence.append(sim[itr])
                 itr += 1
-            elif act == 3: # SUB, TODO: match context
-                new_sentence.append(sentence[itr])
-                itr += 1
+                length += 1
             else:
                 assert False, 'Wrong action %d'% act
 
@@ -53,24 +60,25 @@ def run_paraphrase(question, question_len, context_raws, context_len,
         while len(new_sentence) != len(sentence):
             new_sentence.append(1) # PAD token
 
-        # dprint('\nOriginal %s'% sentence[:length], params['debug'])
-        # dprint('Paraphrase %s'% new_sentence[:length], params['debug'])
-        return new_sentence
+        return new_sentence, length
    
     # Get paraphrased question according to the taken_action
     paraphrased_q = []
-    for org_q, org_q_len, action in zip(question, question_len, taken_action):
-        paraphrased_q.append(paraphrase_question(org_q, org_q_len, action))
+    paraphrased_qlen = []
+    for org_q, org_q_len, action, sim in zip(
+            question, question_len, taken_action, similarity):
+        new_q, new_qlen, paraphrase_question(org_q, org_q_len, action, sim)
+        paraphrased_q.append(new_q)
+        paraphrased_qlen.append(new_qlen)
 
     # Get scores for paraphrased question
     feed_dict[model.paraphrases[pp_idx]] = np.array(paraphrased_q)
-    feed_dict[model.taken_actions[pp_idx]] = np.array(taken_action)
+    # TODO: add changed q len
     ps_logits, pe_logits = sess.run(model.pp_logits[pp_idx], feed_dict=feed_dict)
     predictions = pred_from_logits(ps_logits, pe_logits,
             context_len, context_raws, params)
     em_s, f1_s = em_f1_score(predictions, ground_truths, params)
 
-    # TODO: debug paraphrase
     dprint('\nparaphrased em %s' % em_s, params['debug'])
     dprint('baeline em %s' % baseline_em, params['debug'])
     dprint('advantage em %s' % (em_s - baseline_em), params['debug'])
@@ -82,12 +90,15 @@ def run_paraphrase(question, question_len, context_raws, context_len,
                 params['debug'])
     dprint('original %s' % [idx2word[w] 
         for w in question[max_idx][:question_len[max_idx]]], params['debug'])
+    dprint('similarity %s' % [idx2word[w] 
+        for w in similarity[max_idx][:question_len[max_idx]]], params['debug'])
     dprint('changed %s' % [idx2word[w] 
         for w in paraphrased_q[max_idx][:question_len[max_idx]]], params['debug'])
    
-    # Use REINFORE with original em, f1 as baseline
-    rewards = np.sum([em_s, f1_s], axis=0)
-    baselines = np.sum([baseline_em, baseline_f1], axis=0)
+    # Use REINFORE with original em, f1 as baseline (per example)
+    rewards = np.sum([em_s, f1_s], axis=0) / 2
+    baselines = np.sum([baseline_em, baseline_f1], axis=0) / 2
+    feed_dict[model.taken_actions[pp_idx]] = taken_action
     feed_dict[model.rewards[pp_idx]] = rewards
     feed_dict[model.baselines[pp_idx]] = baselines
     _, pp_loss, summary = sess.run([

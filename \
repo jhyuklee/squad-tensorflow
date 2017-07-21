@@ -73,24 +73,24 @@ class QL_MPCM(MPCM):
             action_sample = tf.argmax(action_logit, 2)
             return action_sample, action_logit
 
-    def optimize_pp(self, action_logit, paraphrase_cnt):
+    def optimize_pp(self, paraphrase_cnt):
         print("# Calculating Paraphrased Loss\n")
         reward = self.rewards[paraphrase_cnt]
         baseline = self.baselines[paraphrase_cnt]
         taken_action = self.taken_actions[paraphrase_cnt]
+        action_logit = self.action_logits
 
         # Add regularizer maybe (reg_loss)
         pg_loss = tf.contrib.seq2seq.sequence_loss(
                 logits=action_logit,
                 targets=taken_action,
                 weights=self.question_mask,
-                average_across_batch=False)
+                average_across_batch=True)
 
-        # Per batch advantage is straight forward.. 
+        # Per batch advantage is straight forward..
         advantage = reward - baseline
-        advantage = tf.nn.relu(advantage) # clip negatives to zero
        
-        # Optimize only paraphrase params 
+        # Optimize only paraphrase module
         self.policy_params = [p for p in tf.trainable_variables()
                 if (('Paraphrase_Layer' in p.name))]
                 # or ('Representation_Layer' in p.name))]
@@ -100,25 +100,10 @@ class QL_MPCM(MPCM):
         reg_loss = tf.reduce_sum(
                 [tf.reduce_sum(tf.square(x)) for x in self.policy_params]) * 0.001
         total_loss = pg_loss
-        
-        """
 
-        def grad_per_example(per_example_loss, per_example_adv, params):
-            tmp_grad = self.optimizer.compute_gradients(per_example_loss, params)
-            for i, (grad, var) in enumerate(tmp_grad):
-                if grad is not None:
-                    tmp_grad[i] = (grad * per_example_adv, var)
-            
-            return tf.zeros([])
-
-        tf.scan(lambda a, x: grad_per_example(x[0], x[1], self.policy_params), 
-            (total_loss, advantage), tf.zeros([]))
-        optimizer = self.optimizer.apply_gradients(
-                self.policy_gradients, global_step=self.global_step)
-       
-        """
         self.policy_gradients = self.optimizer.compute_gradients(total_loss,
                 var_list=self.policy_params)
+        advantage = tf.reduce_sum(advantage)
 
         for i, (grad, var) in enumerate(self.policy_gradients):
             if grad is not None:
@@ -129,16 +114,16 @@ class QL_MPCM(MPCM):
                 global_step=self.global_step)
 
         self.pp_optimize.append(optimize)
-        self.pp_loss.append(total_loss)
+        self.pp_loss.append(tf.reduce_mean(total_loss))
         
         for grad, var in self.policy_gradients:
             tf.summary.histogram(var.name, var)
             if grad is not None:
                 tf.summary.histogram(var.name + '/gradients', grad)
-        tf.summary.scalar('policy loss', tf.reduce_mean(pg_loss))
+        tf.summary.scalar('policy loss', pg_loss)
         tf.summary.scalar('reg loss', reg_loss)
-        tf.summary.scalar('total loss', tf.reduce_mean(total_loss))
-        tf.summary.scalar('advantage', tf.reduce_mean(advantage))
+        tf.summary.scalar('total loss', total_loss)
+        tf.summary.scalar('advantage', advantage)
         tf.summary.scalar('reward', tf.reduce_mean(reward))
         tf.summary.scalar('baseline', tf.reduce_mean(baseline))
 
@@ -163,8 +148,7 @@ class QL_MPCM(MPCM):
                         candidate=candidate, reuse=(pp_idx>1))
                 print('# Paraphrase_layer %d' % (pp_idx), action_logit)
                 paraphrased = self.paraphrases[pp_idx-1]
-                self.action_probs.append(tf.nn.softmax(
-                    tf.cast(action_logit, dtype=tf.float64)))
+                self.action_probs.append(tf.cast(action_logit, dtype=tf.float64))
             else:
                 paraphrased = self.question
             
@@ -202,7 +186,7 @@ class QL_MPCM(MPCM):
 
             if pp_idx > 0:
                 self.pp_logits.append([sl, el])
-                self.optimize_pp(action_logit, pp_idx-1)
+                self.optimize_pp(pp_idx-1)
             else:
                 self.start_logits, self.end_logits = [sl, el]
                 general_params = [p for p in tf.trainable_variables() 

@@ -17,7 +17,7 @@ from run import run_epoch
 
 flags = tf.app.flags
 # Basic model settings
-flags.DEFINE_integer("batch_size", 32, "Size of batch (32)")
+flags.DEFINE_integer("batch_size", 1, "Size of batch (32)")
 flags.DEFINE_integer("dim_embed_word", 300, "Dimension of word embedding (300)")
 flags.DEFINE_integer("dim_rnn_cell", 100, "Dimension of RNN cell (100)")
 flags.DEFINE_integer("dim_hidden", 100, "Dimension of hidden layer")
@@ -51,7 +51,7 @@ flags.DEFINE_integer("dim_perspective", 20, "Maximum number of perspective (20)"
 
 # Paraphrase settings
 flags.DEFINE_integer("num_paraphrase", 1, "Maximum number of question paraphrasing")
-flags.DEFINE_integer("num_action", 2, "Number of action space.")
+flags.DEFINE_integer("num_action", 4, "Number of action space.")
 flags.DEFINE_float("init_exp", 0.0, "Initial exploration prob")
 flags.DEFINE_float("final_exp", 0.0, "Final exploration prob")
 flags.DEFINE_boolean("train_pp_only", True, "True to train paraphrase only")
