@@ -86,9 +86,9 @@ class QL_MPCM(MPCM):
                 weights=self.question_mask,
                 average_across_batch=False)
 
-        # Per batch advantage is straight forward.. 
         advantage = reward - baseline
         advantage = tf.nn.relu(advantage) # clip negatives to zero
+        pg_loss *= advantage
        
         # Optimize only paraphrase params 
         self.policy_params = [p for p in tf.trainable_variables()

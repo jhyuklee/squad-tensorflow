@@ -82,7 +82,7 @@ def run_paraphrase(question, question_len, context_raws, context_len,
     dprint('\nparaphrased em %s' % em_s, params['debug'])
     dprint('baeline em %s' % baseline_em, params['debug'])
     dprint('advantage em %s' % (em_s - baseline_em), params['debug'])
-    max_idx = np.argmax(em_s - baseline_em)
+    max_idx = np.argmax(em_s + f1_s - baseline_em - baseline_f1)
     dprint('max idx: %d, em: %.3f, f1: %.3f' % (
         max_idx, em_s[max_idx], f1_s[max_idx]), params['debug'])
     dprint('\nRules %s'% (' '.join([idx2action[idx]

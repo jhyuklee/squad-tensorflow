@@ -17,7 +17,7 @@ from run import run_epoch
 
 flags = tf.app.flags
 # Basic model settings
-flags.DEFINE_integer("batch_size", 1, "Size of batch (32)")
+flags.DEFINE_integer("batch_size", 32, "Size of batch (32)")
 flags.DEFINE_integer("dim_embed_word", 300, "Dimension of word embedding (300)")
 flags.DEFINE_integer("dim_rnn_cell", 100, "Dimension of RNN cell (100)")
 flags.DEFINE_integer("dim_hidden", 100, "Dimension of hidden layer")
