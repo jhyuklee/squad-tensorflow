@@ -26,7 +26,7 @@ flags.DEFINE_integer("context_maxlen", 0, "Predefined context length (0 for max)
 flags.DEFINE_float("rnn_dropout", 0.5, "Dropout of RNN cell")
 flags.DEFINE_float("hidden_dropout", 0.5, "Dropout rate of hidden layer")
 flags.DEFINE_float("embed_dropout", 0.8, "Dropout rate of embedding layer")
-flags.DEFINE_float("learning_rate", 0.00162, "Init learning rate of the optimzier")
+flags.DEFINE_float("learning_rate", 0.0001, "Init learning rate of the optimzier")
 flags.DEFINE_float("max_grad_norm", 5.0, "Maximum gradient to clip")
 
 # Run options
@@ -53,7 +53,7 @@ flags.DEFINE_integer("dim_perspective", 20, "Maximum number of perspective (20)"
 flags.DEFINE_integer("num_paraphrase", 1, "Maximum iter of question paraphrasing")
 flags.DEFINE_integer("num_action", 4, "Number of action space.")
 flags.DEFINE_integer("pp_dim_rnn_cell", 100, "Dimension of RNN cell (100)")
-flags.DEFINE_integer("pp_rnn_layer", 1, "Layer number of RNN")
+flags.DEFINE_integer("pp_rnn_layer", 3, "Layer number of RNN")
 flags.DEFINE_float("init_exp", 0.0, "Initial exploration prob")
 flags.DEFINE_float("final_exp", 0.0, "Final exploration prob")
 flags.DEFINE_boolean("train_pp_only", True, "True to train paraphrase only")
@@ -112,7 +112,8 @@ def run(model, params, train_dataset, dev_dataset, idx2word):
                 else: 
                     # Learning rate decay exponentially
                     print('\nLower learning rate from %f to %f (%d/3)' % (
-                        params['learning_rate'], params['learning_rate'] / 2, es_cnt))
+                        params['learning_rate'], 
+                        params['learning_rate'] / 2, es_cnt))
                     params['learning_rate'] /= 2
             else:
                 es_cnt = 0

@@ -108,7 +108,7 @@ class QL_MPCM(MPCM):
                 average_across_batch=False)
         tf.summary.scalar('policy loss', tf.reduce_mean(pg_loss))
 
-        advantage = reward - baseline
+        advantage = reward / (baseline + 1e-5) + reward
         pg_loss *= advantage
        
         # Optimize only paraphrase params 

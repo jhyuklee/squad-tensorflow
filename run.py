@@ -111,7 +111,7 @@ def run_paraphrase(question, question_len, context_raws, context_len,
     pp_em = np.sum(em_s) / len(question)
     pp_f1 = np.sum(f1_s) / len(question)
 
-    return pp_em, pp_f1, pp_loss, advantage, summary
+    return pp_em, pp_f1, pp_loss, advantage, rewards, baselines, summary
 
 
 def run_epoch(model, dataset, epoch, base_iter, idx2word, params, is_train=True):
@@ -126,6 +126,8 @@ def run_epoch(model, dataset, epoch, base_iter, idx2word, params, is_train=True)
     pp_em = [0] * params['num_paraphrase']
     pp_f1 = [0] * params['num_paraphrase']
     pp_losses = [0] * params['num_paraphrase']
+    pp_reward = [0] * params['num_paraphrase']
+    pp_baseline = [0] * params['num_paraphrase']
     pp_advantage = [0] * params['num_paraphrase']
     pp_cnt = 0
 
@@ -195,17 +197,20 @@ def run_epoch(model, dataset, epoch, base_iter, idx2word, params, is_train=True)
                 baseline_f1 = f1
                 if 'q' == params['mode']:
                     for pp_idx in range(params['num_paraphrase']):
-                        tmp_em, tmp_f1, tmp_loss, adv, summary = run_paraphrase(
-                                batch_question,
-                                batch_question_len,
-                                context_raws,
-                                batch_context_len,
-                                ground_truths, None, # Use similarity matrix
-                                baseline_em, baseline_f1, pp_idx, idx2word,
-                                model, feed_dict, params, is_train=is_train)
+                        tmp_em, tmp_f1, tmp_loss, adv, tmp_r, tmp_b, summary = \
+                                run_paraphrase(
+                                        batch_question,
+                                        batch_question_len,
+                                        context_raws,
+                                        batch_context_len,
+                                        ground_truths, None, # Deprecated
+                                        baseline_em, baseline_f1, pp_idx, idx2word,
+                                        model, feed_dict, params, is_train=is_train)
                         pp_em[pp_idx] += tmp_em
                         pp_f1[pp_idx] += tmp_f1
                         pp_losses[pp_idx] += tmp_loss
+                        pp_reward[pp_idx] += tmp_r
+                        pp_baseline[pp_idx] += tmp_b
                         pp_advantage[pp_idx] += adv
                         pp_cnt += 1
                 
@@ -224,10 +229,17 @@ def run_epoch(model, dataset, epoch, base_iter, idx2word, params, is_train=True)
                                     summary, base_iter + pp_cnt)
 
                         # Cumulative summary
+                        cumulative_r = summary_pb2.Summary.Value(
+                                tag='cumulative reward',
+                                simple_value=pp_reward[0]/pp_cnt)
+                        cumulative_b = summary_pb2.Summary.Value(
+                                tag='cumulative baseline',
+                                simple_value=pp_baseline[0]/pp_cnt)
                         cumulative_adv = summary_pb2.Summary.Value(
-                                tag='cumulative adv',
+                                tag='cumulative advantage',
                                 simple_value=pp_advantage[0]/pp_cnt)
-                        summary = summary_pb2.Summary(value=[cumulative_adv])
+                        summary = summary_pb2.Summary(
+                                value=[cumulative_r, cumulative_b, cumulative_adv])
                         if is_train:
                             model.train_writer.add_summary(
                                     summary, base_iter + pp_cnt)
@@ -269,6 +281,7 @@ def run_epoch(model, dataset, epoch, base_iter, idx2word, params, is_train=True)
         pp_advantage[0] /= pp_cnt
         print('Paraphrase loss: %.3f, em: %.3f, f1: %.3f, adv: %.3f' % (
             pp_losses[0], pp_em[0], pp_f1[0], pp_advantage[0]))
+    print('Total iteration %d' % (pp_cnt + base_iter))
 
     return total_em, total_f1, total_loss, pp_cnt + base_iter
 
