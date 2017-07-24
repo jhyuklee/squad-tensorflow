@@ -3,6 +3,7 @@ import numpy as np
 
 from evaluate import *
 from utils import *
+from tensorflow.core.framework import summary_pb2
 
 def run_paraphrase(question, question_len, context_raws, context_len, 
         ground_truths, sim_mat, baseline_em, baseline_f1, pp_idx, idx2word, 
@@ -182,8 +183,8 @@ def run_epoch(model, dataset, epoch, base_iter, idx2word, params, is_train=True)
                 loss, start_logits, end_logits, lr, _ = sess.run(
                         [model.loss, model.start_logits, model.end_logits, 
                             model.learning_rate,
-                            model.optimize
-                            if not (params['mode'] == 'q' and params['train_pp_only'])
+                            model.optimize if not (params['mode'] == 'q' 
+                                and params['train_pp_only'])
                             and is_train else model.no_op], feed_dict=feed_dict)
                 
                 predictions = pred_from_logits(start_logits, 
@@ -194,7 +195,7 @@ def run_epoch(model, dataset, epoch, base_iter, idx2word, params, is_train=True)
                 baseline_f1 = f1
                 if 'q' == params['mode']:
                     for pp_idx in range(params['num_paraphrase']):
-                        tmp_em, tmp_f1, tmp_loss, advantage, summary = run_paraphrase(
+                        tmp_em, tmp_f1, tmp_loss, adv, summary = run_paraphrase(
                                 batch_question,
                                 batch_question_len,
                                 context_raws,
@@ -205,26 +206,41 @@ def run_epoch(model, dataset, epoch, base_iter, idx2word, params, is_train=True)
                         pp_em[pp_idx] += tmp_em
                         pp_f1[pp_idx] += tmp_f1
                         pp_losses[pp_idx] += tmp_loss
-                        pp_advantage[pp_idx] += advantage
+                        pp_advantage[pp_idx] += adv
                         pp_cnt += 1
                     
                     if params['summarize']:
                         if is_train:
-                            model.train_writer.add_summary(summary, base_iter + pp_cnt)
+                            model.train_writer.add_summary(
+                                    summary, base_iter + pp_cnt)
                         else:
-                            model.valid_writer.add_summary(summary, base_iter + pp_cnt)
+                            model.valid_writer.add_summary(
+                                    summary, base_iter + pp_cnt)
                 
                 # Print intermediate result
                 if dataset_idx % 5 == 0:
                     em = np.sum(em) / len(mini_batch)
                     f1 = np.sum(f1) / len(mini_batch)
-                    
+
+                    # Cumulative advantage
+                    if params['summarize'] and params['mode'] == 'q':
+                        cumulative_adv = summary_pb2.Summary.Value(
+                                tag='cumulative adv',
+                                simple_value=pp_advantage[0]/pp_cnt)
+                        summary = summary_pb2.Summary(value=[cumulative_adv])
+                        if is_train:
+                            model.train_writer.add_summary(
+                                    summary, base_iter + pp_cnt)
+                        else:
+                            model.valid_writer.add_summary(
+                                    summary, base_iter + pp_cnt)
+
                     _progress = progress(dataset_idx / float(len(dataset)))
-                    _progress += "loss: %.3f, em: %.3f, f1: %.3f" % (loss, em, f1)
-                    _progress += " progress: %d/%d, lr: %.5f, ep: %d" %(
-                            dataset_idx, len(dataset), lr, epoch)
+                    _progress += "loss:%.2f, em:%.2f, f1: %.2f" % (loss, em, f1)
+                    _progress += ", idx:%d/%d [e%d]" %(
+                            dataset_idx, len(dataset), epoch)
                     if 'q' == params['mode']:
-                        _progress += " adv: %.3f" % (advantage)
+                        _progress += " adv:%.2f" % (pp_advantage[0]/pp_cnt)
                     sys.stdout.write(_progress)
                     sys.stdout.flush()
                     
@@ -237,7 +253,6 @@ def run_epoch(model, dataset, epoch, base_iter, idx2word, params, is_train=True)
                 ground_truths = []
                 context_raws = []
                 question_raws = []
-
 
     # Average result
     total_em /= total_cnt

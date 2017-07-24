@@ -33,23 +33,20 @@ class QL_MPCM(MPCM):
 
     def similarity_layer(self, context, question, reuse=None):
         with tf.variable_scope('Similarity_Layer', reuse=reuse) as scope:
-            """
             c_norm = tf.sqrt(
                     tf.maximum(tf.reduce_sum(tf.square(context), axis=-1), 1e-6))
             q_norm = tf.sqrt(
                     tf.maximum(tf.reduce_sum(tf.square(question), axis=-1), 1e-6))
             n_context = context / tf.expand_dims(c_norm, -1)
             n_question = question / tf.expand_dims(q_norm, -1)
-            tr_question = tf.transpose(n_question, [2, 0, 1])
+            tr_question = tf.transpose(n_question, [0, 2, 1])
             sim_mat = tf.get_variable('sim_mat',
                     initializer=tf.eye(self.dim_embed_word), dtype=tf.float32)
-            cont_sim = tf.matmul(tf.reshape(n_context, [-1, self.dim_embed_word]),
-                    sim_mat)
-            self.similarity = tf.matmul(cont_sim, 
-                    tf.reshape(tr_question, [self.dim_embed_word, -1]))
-            self.similarity = tf.reshape(self.similarity,
-                    [-1, self.context_maxlen, self.question_maxlen])
-            """
+            b_sim_mat = tf.scan(lambda a, x: tf.identity(sim_mat), 
+                    context, tf.zeros([self.dim_embed_word, self.dim_embed_word], 
+                        dtype=tf.float32)) 
+            cont_sim = tf.matmul(n_context, b_sim_mat)
+            self.similarity = tf.matmul(cont_sim, tr_question)
             
             c_sim = tf.argmax(tf.transpose(self.similarity, [0, 2, 1]), axis=2)
             self.selected_context = tf.scan(lambda a, x: tf.gather(x[0], x[1]),
@@ -226,7 +223,8 @@ class QL_MPCM(MPCM):
                 general_params = [p for p in tf.trainable_variables() 
                         if ('Paraphrase_Layer' not in p.name) and
                         ('Similarity_Layer' not in p.name)]
-                self.optimize_loss(self.start_logits, self.end_logits, general_params)
+                self.optimize_loss(
+                        self.start_logits, self.end_logits, general_params)
 
     def anneal_exploration(self):
         if self.exploration > 0:
