@@ -155,6 +155,12 @@ def run_epoch(model, dataset, epoch, base_iter, idx2word, params, is_train=True)
                 batch_answer_start = np.array([b[4] for b in mini_batch])
                 batch_answer_end = np.array([b[5] for b in mini_batch])
 
+                # No dropout for question learning
+                if params['mode'] == 'q':
+                    params['rnn_dropout'] = 1.0
+                    params['hidden_dropout'] = 1.0
+                    params['embed_dropout'] = 1.0
+
                 feed_dict = {model.context: batch_context,
                         model.context_len: batch_context_len,
                         model.question: batch_question,

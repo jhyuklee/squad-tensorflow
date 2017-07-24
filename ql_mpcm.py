@@ -33,6 +33,7 @@ class QL_MPCM(MPCM):
 
     def similarity_layer(self, context, question, reuse=None):
         with tf.variable_scope('Similarity_Layer', reuse=reuse) as scope:
+            """
             c_norm = tf.sqrt(
                     tf.maximum(tf.reduce_sum(tf.square(context), axis=-1), 1e-6))
             q_norm = tf.sqrt(
@@ -48,6 +49,7 @@ class QL_MPCM(MPCM):
                     tf.reshape(tr_question, [self.dim_embed_word, -1]))
             self.similarity = tf.reshape(self.similarity,
                     [-1, self.context_maxlen, self.question_maxlen])
+            """
             
             c_sim = tf.argmax(tf.transpose(self.similarity, [0, 2, 1]), axis=2)
             self.selected_context = tf.scan(lambda a, x: tf.gather(x[0], x[1]),
@@ -107,6 +109,7 @@ class QL_MPCM(MPCM):
                 targets=taken_action,
                 weights=self.question_mask,
                 average_across_batch=False)
+        tf.summary.scalar('policy loss', tf.reduce_mean(pg_loss))
 
         advantage = reward - baseline
         pg_loss *= advantage
@@ -151,7 +154,6 @@ class QL_MPCM(MPCM):
             tf.summary.histogram(var.name, var)
             if grad is not None:
                 tf.summary.histogram(var.name + '/gradients', grad)
-        tf.summary.scalar('policy loss', tf.reduce_mean(pg_loss))
         tf.summary.scalar('reg loss', reg_loss)
         tf.summary.scalar('total loss', tf.reduce_mean(total_loss))
         tf.summary.scalar('advantage', tf.reduce_mean(advantage))
