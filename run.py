@@ -208,22 +208,22 @@ def run_epoch(model, dataset, epoch, base_iter, idx2word, params, is_train=True)
                         pp_losses[pp_idx] += tmp_loss
                         pp_advantage[pp_idx] += adv
                         pp_cnt += 1
-                    
-                    if params['summarize']:
-                        if is_train:
-                            model.train_writer.add_summary(
-                                    summary, base_iter + pp_cnt)
-                        else:
-                            model.valid_writer.add_summary(
-                                    summary, base_iter + pp_cnt)
                 
                 # Print intermediate result
                 if dataset_idx % 5 == 0:
                     em = np.sum(em) / len(mini_batch)
                     f1 = np.sum(f1) / len(mini_batch)
 
-                    # Cumulative advantage
                     if params['summarize'] and params['mode'] == 'q':
+                        # Basic summary
+                        if is_train:
+                            model.train_writer.add_summary(
+                                    summary, base_iter + pp_cnt)
+                        else:
+                            model.valid_writer.add_summary(
+                                    summary, base_iter + pp_cnt)
+
+                        # Cumulative summary
                         cumulative_adv = summary_pb2.Summary.Value(
                                 tag='cumulative adv',
                                 simple_value=pp_advantage[0]/pp_cnt)
@@ -236,7 +236,7 @@ def run_epoch(model, dataset, epoch, base_iter, idx2word, params, is_train=True)
                                     summary, base_iter + pp_cnt)
 
                     _progress = progress(dataset_idx / float(len(dataset)))
-                    _progress += "loss:%.2f, em:%.2f, f1: %.2f" % (loss, em, f1)
+                    _progress += "loss:%.2f, em:%.2f, f1:%.2f" % (loss, em, f1)
                     _progress += ", idx:%d/%d [e%d]" %(
                             dataset_idx, len(dataset), epoch)
                     if 'q' == params['mode']:
