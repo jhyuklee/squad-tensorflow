@@ -8,7 +8,8 @@ from ops import *
 class QL_MPCM(MPCM):
     def __init__(self, params, initializer):
         self.num_paraphrase = params['num_paraphrase']
-        self.num_action = params['num_action']
+        self.dim_action = params['dim_action']
+        self.max_action = params['max_action']
         self.init_exp = params['init_exp']
         self.final_exp = params['final_exp']
         self.pp_dim_rnn_cell = params['pp_dim_rnn_cell']
@@ -67,10 +68,10 @@ class QL_MPCM(MPCM):
             candidate=None, reuse=None):
         with tf.variable_scope('Paraphrase_Layer', reuse=reuse) as scope:
             weights = tf.get_variable('out_w', 
-                    [self.pp_dim_rnn_cell * 2, self.num_action],
+                    [self.pp_dim_rnn_cell * 2, self.dim_action],
                     initializer=tf.random_normal_initializer())
             biases = tf.get_variable('out_b', 
-                    [self.num_action],                 
+                    [self.dim_action],                 
                     initializer=tf.constant_initializer(0.0))
             
             # Concat question and context [q, c_sim]
@@ -86,12 +87,12 @@ class QL_MPCM(MPCM):
             #        c_state[0], c_state[1])
             outputs_t = tf.reshape(outputs, [-1, self.pp_dim_rnn_cell * 2])
             action_logit = tf.reshape(tf.matmul(outputs_t, weights) + biases,
-                    [-1, max_length, self.num_action])
+                    [-1, max_length, self.dim_action])
 
             action_sample = tf.multinomial(
-                    tf.reshape(action_logit, [-1, self.num_action]), 1)
+                    tf.reshape(action_logit, [-1, self.dim_action]), 1)
             action_sample = tf.reshape(action_sample, 
-                    [-1, self.question_maxlen, self.num_action])
+                    [-1, self.question_maxlen, self.dim_action])
             return action_sample, action_logit
 
     def optimize_pp(self, action_logit, paraphrase_cnt):

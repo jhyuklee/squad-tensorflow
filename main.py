@@ -26,7 +26,7 @@ flags.DEFINE_integer("context_maxlen", 0, "Predefined context length (0 for max)
 flags.DEFINE_float("rnn_dropout", 0.5, "Dropout of RNN cell")
 flags.DEFINE_float("hidden_dropout", 0.5, "Dropout rate of hidden layer")
 flags.DEFINE_float("embed_dropout", 0.8, "Dropout rate of embedding layer")
-flags.DEFINE_float("learning_rate", 0.0001, "Init learning rate of the optimzier")
+flags.DEFINE_float("learning_rate", 0.001, "Init learning rate of the optimzier")
 flags.DEFINE_float("max_grad_norm", 5.0, "Maximum gradient to clip")
 
 # Run options
@@ -51,7 +51,8 @@ flags.DEFINE_integer("dim_perspective", 20, "Maximum number of perspective (20)"
 
 # Paraphrase settings
 flags.DEFINE_integer("num_paraphrase", 1, "Maximum iter of question paraphrasing")
-flags.DEFINE_integer("num_action", 4, "Number of action space.")
+flags.DEFINE_integer("dim_action", 4, "Dimension of action space")
+flags.DEFINE_integer("max_action", 5, "Maximum possible sampled actions")
 flags.DEFINE_integer("pp_dim_rnn_cell", 100, "Dimension of RNN cell (100)")
 flags.DEFINE_integer("pp_rnn_layer", 3, "Layer number of RNN")
 flags.DEFINE_float("init_exp", 0.0, "Initial exploration prob")

@@ -29,32 +29,41 @@ def run_paraphrase(question, question_len, context_raws, context_len,
         actions = []
         for prob in batch_action:
             if np.random.random() < model.exploration:
-                actions.append(np.random.randint(model.num_action))
+                actions.append(np.random.randint(model.dim_action))
             else:
-                actions.append(np.argmax(np.random.multinomial(1, softmax(prob))))
+                actions.append(np.argmax(np.random.multinomial(1, prob)))
         taken_action.append(actions)
 
-    def paraphrase_question(sentence, length, actions, sim):
+    def paraphrase_question(sentence, length, 
+            actions, actions_prob, sim, max_action):
         new_sentence = []
         itr = 0
+        action_cnt = 0
+        # TODO: Choose only maximum probability actions (use actions_prob)
+
         for idx, act in enumerate(actions):
             if idx2action[act] == 'NONE':
                 new_sentence.append(sentence[itr])
                 itr += 1
             elif idx2action[act] == 'DEL':
                 itr += 1
+                action_cnt += 1
             elif idx2action[act] == 'SUB':
                 new_sentence.append(sim[itr])
                 itr += 1
+                action_cnt += 1
             elif idx2action[act] == 'INS':
                 new_sentence.append(sentence[itr])
                 new_sentence.append(sim[itr])
                 itr += 1
+                action_cnt += 1
                 length += 1
             else:
                 assert False, 'Wrong action %d'% act
 
             if itr >= length:
+                break
+            if action_cnt >= max_action:
                 break
         
         while len(new_sentence) <= len(sentence):
@@ -66,9 +75,10 @@ def run_paraphrase(question, question_len, context_raws, context_len,
     # Get paraphrased question according to the taken_action
     paraphrased_q = []
     paraphrased_qlen = []
-    for org_q, org_q_len, action, sim in zip(
-            question, question_len, taken_action, similarity):
-        new_q, new_qlen = paraphrase_question(org_q, org_q_len, action, sim)
+    for org_q, org_q_len, action, a_prob, sim in zip(
+            question, question_len, taken_action, action_prob, similarity):
+        new_q, new_qlen = paraphrase_question(
+                org_q, org_q_len, action, a_prob, sim, model.max_action)
         paraphrased_q.append(new_q)
         paraphrased_qlen.append(new_qlen)
 
@@ -222,30 +232,26 @@ def run_epoch(model, dataset, epoch, base_iter, idx2word, params, is_train=True)
 
                     if params['summarize'] and params['mode'] == 'q':
                         # Basic summary
-                        if :
-                            model.train_writer.add_summary(
-                                    summary, base_iter + pp_cnt)
-                        else:
-                            model.valid_writer.add_summary(
-                                    summary, base_iter + pp_cnt)
-
-                        # Cumulative summary
                         summary_writer = (model.train_writer if is_train
                                 else model.valid_writer)
+                        summary_writer.add_summary(
+                                summary, base_iter + pp_cnt)
+
+                        # Cumulative summary
                         write_scalar_summary(
                                 'cumulative reward',
                                 pp_reward[0]/pp_cnt,
-                                base_ite + pp_cnt,
+                                base_iter + pp_cnt,
                                 summary_writer)
                         write_scalar_summary(
                                 'cumulative baseline',
                                 pp_baseline[0]/pp_cnt,
-                                base_ite + pp_cnt,
+                                base_iter + pp_cnt,
                                 summary_writer)
                         write_scalar_summary(
                                 'cumulative advantage',
                                 pp_advantage[0]/pp_cnt,
-                                base_ite + pp_cnt,
+                                base_iter + pp_cnt,
                                 summary_writer)
 
                     _progress = progress(dataset_idx / float(len(dataset)))
