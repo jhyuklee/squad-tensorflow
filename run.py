@@ -10,8 +10,8 @@ def run_paraphrase(question, question_len, context_raws, context_len,
 
     idx2action = {
             0: 'NONE',
-            2: 'DEL',
-            1: 'SUB',
+            1: 'DEL',
+            2: 'SUB',
             3: 'INS'
     }
     sess = model.session
@@ -57,8 +57,9 @@ def run_paraphrase(question, question_len, context_raws, context_len,
             if itr >= length:
                 break
         
-        while len(new_sentence) != len(sentence):
+        while len(new_sentence) <= len(sentence):
             new_sentence.append(1) # PAD token
+        new_sentence = new_sentence[:model.question_maxlen]
 
         return new_sentence, length
    
@@ -67,7 +68,7 @@ def run_paraphrase(question, question_len, context_raws, context_len,
     paraphrased_qlen = []
     for org_q, org_q_len, action, sim in zip(
             question, question_len, taken_action, similarity):
-        new_q, new_qlen, paraphrase_question(org_q, org_q_len, action, sim)
+        new_q, new_qlen = paraphrase_question(org_q, org_q_len, action, sim)
         paraphrased_q.append(new_q)
         paraphrased_qlen.append(new_qlen)
 

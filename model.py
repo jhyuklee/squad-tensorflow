@@ -175,7 +175,8 @@ class Basic(object):
         
         if self.params['mode'] == 'q':
             model_vars = [v for v in tf.trainable_variables()
-                    if 'Paraphrase_Layer' not in v.name]
+                    if ('Paraphrase_Layer' not in v.name) and
+                    ('Similarity_Layer' not in v.name)]
         else:
             model_vars = [v for v in tf.trainable_variables()]
         self.loader = tf.train.Saver(model_vars)

@@ -11,11 +11,13 @@ class QL_MPCM(MPCM):
         self.num_action = params['num_action']
         self.init_exp = params['init_exp']
         self.final_exp = params['final_exp']
+        self.pp_dim_rnn_cell = params['pp_dim_rnn_cell']
+        self.pp_rnn_layer = params['pp_rnn_layer']
         self.exploration = self.init_exp
         self.rewards = []
         self.baselines = []
-        self.paraphrases = []
-        self.pp_logits = []
+        self.paraphrases = [] # paraphrased question after applying action rules
+        self.pp_logits = [] # logits after paraphrasing
         self.pp_loss = []
         self.pp_optimize = []
         self.taken_actions = []
@@ -29,13 +31,29 @@ class QL_MPCM(MPCM):
                 [None, params['question_maxlen']]))
         super(QL_MPCM, self).__init__(params, initializer)
 
-    def candidate_layer(self):
-        # TODO: more sophisticated similarity measure (learnable)
-        c_sim = tf.argmax(tf.transpose(self.similarity, [0, 2, 1]), axis=2)
-        self.selected_context = tf.scan(lambda a, x: tf.gather(x[0], x[1]),
-                (self.context, c_sim), 
-                tf.zeros([self.question_maxlen], dtype=tf.int32))
-        
+    def similarity_layer(self, context, question, reuse=None):
+        with tf.variable_scope('Similarity_Layer', reuse=reuse) as scope:
+            c_norm = tf.sqrt(
+                    tf.maximum(tf.reduce_sum(tf.square(context), axis=-1), 1e-6))
+            q_norm = tf.sqrt(
+                    tf.maximum(tf.reduce_sum(tf.square(question), axis=-1), 1e-6))
+            n_context = context / tf.expand_dims(c_norm, -1)
+            n_question = question / tf.expand_dims(q_norm, -1)
+            tr_question = tf.transpose(n_question, [2, 0, 1])
+            sim_mat = tf.get_variable('sim_mat',
+                    initializer=tf.eye(self.dim_embed_word), dtype=tf.float32)
+            cont_sim = tf.matmul(tf.reshape(n_context, [-1, self.dim_embed_word]),
+                    sim_mat)
+            self.similarity = tf.matmul(cont_sim, 
+                    tf.reshape(tr_question, [self.dim_embed_word, -1]))
+            self.similarity = tf.reshape(self.similarity,
+                    [-1, self.context_maxlen, self.question_maxlen])
+            
+            c_sim = tf.argmax(tf.transpose(self.similarity, [0, 2, 1]), axis=2)
+            self.selected_context = tf.scan(lambda a, x: tf.gather(x[0], x[1]),
+                    (self.context, c_sim), 
+                    tf.zeros([self.question_maxlen], dtype=tf.int32))
+            
         selected_embed = dropout(embedding_lookup(
                 inputs=self.selected_context,
                 voca_size=self.voca_size,
@@ -50,7 +68,7 @@ class QL_MPCM(MPCM):
             candidate=None, reuse=None):
         with tf.variable_scope('Paraphrase_Layer', reuse=reuse) as scope:
             weights = tf.get_variable('out_w', 
-                    [self.dim_rnn_cell * 2, self.num_action],
+                    [self.pp_dim_rnn_cell * 2, self.num_action],
                     initializer=tf.random_normal_initializer())
             biases = tf.get_variable('out_b', 
                     [self.num_action],                 
@@ -61,16 +79,20 @@ class QL_MPCM(MPCM):
                 question = tf.concat(axis=2, values=[question, candidate])
            
             # Bidirectional
-            fw_cell = lstm_cell(self.dim_rnn_cell, self.rnn_layer, self.rnn_dropout)
-            bw_cell = lstm_cell(self.dim_rnn_cell, self.rnn_layer, self.rnn_dropout)
-            outputs, state = bi_rnn_model(question, length, fw_cell, bw_cell, 
-                    c_state[0], c_state[1])
-            outputs_t = tf.reshape(outputs, [-1, self.dim_rnn_cell * 2])
+            fw_cell = lstm_cell(
+                    self.pp_dim_rnn_cell, self.pp_rnn_layer, self.rnn_dropout)
+            bw_cell = lstm_cell(
+                    self.pp_dim_rnn_cell, self.pp_rnn_layer, self.rnn_dropout)
+            outputs, state = bi_rnn_model(question, length, fw_cell, bw_cell)
+            #        c_state[0], c_state[1])
+            outputs_t = tf.reshape(outputs, [-1, self.pp_dim_rnn_cell * 2])
             action_logit = tf.reshape(tf.matmul(outputs_t, weights) + biases,
                     [-1, max_length, self.num_action])
 
-            # TODO: Not argmax but multinomial
-            action_sample = tf.argmax(action_logit, 2)
+            action_sample = tf.multinomial(
+                    tf.reshape(action_logit, [-1, self.num_action]), 1)
+            action_sample = tf.reshape(action_sample, 
+                    [-1, self.question_maxlen, self.num_action])
             return action_sample, action_logit
 
     def optimize_pp(self, action_logit, paraphrase_cnt):
@@ -87,19 +109,18 @@ class QL_MPCM(MPCM):
                 average_across_batch=False)
 
         advantage = reward - baseline
-        advantage = tf.nn.relu(advantage) # clip negatives to zero
         pg_loss *= advantage
        
         # Optimize only paraphrase params 
         self.policy_params = [p for p in tf.trainable_variables()
-                if (('Paraphrase_Layer' in p.name))]
-                # or ('Representation_Layer' in p.name))]
-        # print([p.name for p in self.policy_params])
+                if (('Paraphrase_Layer' in p.name)
+                or ('Similarity_Layer' in p.name))]
+        print('pp optimize', [p.name for p in self.policy_params])
 
         # Regularizer not used
         reg_loss = tf.reduce_sum(
                 [tf.reduce_sum(tf.square(x)) for x in self.policy_params]) * 0.001
-        total_loss = pg_loss
+        total_loss = tf.reduce_mean(pg_loss)
         
         """
 
@@ -119,11 +140,6 @@ class QL_MPCM(MPCM):
         """
         self.policy_gradients = self.optimizer.compute_gradients(total_loss,
                 var_list=self.policy_params)
-
-        for i, (grad, var) in enumerate(self.policy_gradients):
-            if grad is not None:
-                # grad = tf.clip_by_norm(grad, self.max_grad_norm)
-                self.policy_gradients[i] = (grad * advantage, var)
 
         optimize = self.optimizer.apply_gradients(self.policy_gradients,
                 global_step=self.global_step)
@@ -156,7 +172,7 @@ class QL_MPCM(MPCM):
         end_logits = []
         for pp_idx in range(self.num_paraphrase + 1):
             if pp_idx > 0:
-                candidate = self.candidate_layer()
+                candidate = self.similarity_layer(context_embed, question_embed)
                 _, action_logit = self.paraphrase_layer(
                         question_rep, c_state,
                         self.question_len, self.question_maxlen, 
@@ -206,7 +222,8 @@ class QL_MPCM(MPCM):
             else:
                 self.start_logits, self.end_logits = [sl, el]
                 general_params = [p for p in tf.trainable_variables() 
-                        if 'Paraphrase_Layer' not in p.name]
+                        if ('Paraphrase_Layer' not in p.name) and
+                        ('Similarity_Layer' not in p.name)]
                 self.optimize_loss(self.start_logits, self.end_logits, general_params)
 
     def anneal_exploration(self):
