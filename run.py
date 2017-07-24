@@ -3,7 +3,6 @@ import numpy as np
 
 from evaluate import *
 from utils import *
-from tensorflow.core.framework import summary_pb2
 
 def run_paraphrase(question, question_len, context_raws, context_len, 
         ground_truths, sim_mat, baseline_em, baseline_f1, pp_idx, idx2word, 
@@ -107,7 +106,9 @@ def run_paraphrase(question, question_len, context_raws, context_len,
         model.pp_optimize[pp_idx] if is_train else model.no_op,
         model.pp_loss[pp_idx], model.merged_summary], feed_dict=feed_dict)
 
-    advantage = np.sum(rewards - baselines)
+    advantage = np.sum(np.clip(rewards / (baselines + 1e-5), 0, 10) + rewards)
+    rewards = np.sum(rewards)
+    baselines = np.sum(baselines)
     pp_em = np.sum(em_s) / len(question)
     pp_f1 = np.sum(f1_s) / len(question)
 
@@ -221,7 +222,7 @@ def run_epoch(model, dataset, epoch, base_iter, idx2word, params, is_train=True)
 
                     if params['summarize'] and params['mode'] == 'q':
                         # Basic summary
-                        if is_train:
+                        if :
                             model.train_writer.add_summary(
                                     summary, base_iter + pp_cnt)
                         else:
@@ -229,23 +230,23 @@ def run_epoch(model, dataset, epoch, base_iter, idx2word, params, is_train=True)
                                     summary, base_iter + pp_cnt)
 
                         # Cumulative summary
-                        cumulative_r = summary_pb2.Summary.Value(
-                                tag='cumulative reward',
-                                simple_value=pp_reward[0]/pp_cnt)
-                        cumulative_b = summary_pb2.Summary.Value(
-                                tag='cumulative baseline',
-                                simple_value=pp_baseline[0]/pp_cnt)
-                        cumulative_adv = summary_pb2.Summary.Value(
-                                tag='cumulative advantage',
-                                simple_value=pp_advantage[0]/pp_cnt)
-                        summary = summary_pb2.Summary(
-                                value=[cumulative_r, cumulative_b, cumulative_adv])
-                        if is_train:
-                            model.train_writer.add_summary(
-                                    summary, base_iter + pp_cnt)
-                        else:
-                            model.valid_writer.add_summary(
-                                    summary, base_iter + pp_cnt)
+                        summary_writer = (model.train_writer if is_train
+                                else model.valid_writer)
+                        write_scalar_summary(
+                                'cumulative reward',
+                                pp_reward[0]/pp_cnt,
+                                base_ite + pp_cnt,
+                                summary_writer)
+                        write_scalar_summary(
+                                'cumulative baseline',
+                                pp_baseline[0]/pp_cnt,
+                                base_ite + pp_cnt,
+                                summary_writer)
+                        write_scalar_summary(
+                                'cumulative advantage',
+                                pp_advantage[0]/pp_cnt,
+                                base_ite + pp_cnt,
+                                summary_writer)
 
                     _progress = progress(dataset_idx / float(len(dataset)))
                     _progress += "loss:%.2f, em:%.2f, f1:%.2f" % (loss, em, f1)

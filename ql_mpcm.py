@@ -108,7 +108,7 @@ class QL_MPCM(MPCM):
                 average_across_batch=False)
         tf.summary.scalar('policy loss', tf.reduce_mean(pg_loss))
 
-        advantage = reward / (baseline + 1e-5) + reward
+        advantage = tf.clip_by_value(reward / (baseline + 1e-5), 0, 10) + reward
         pg_loss *= advantage
        
         # Optimize only paraphrase params 
@@ -122,25 +122,8 @@ class QL_MPCM(MPCM):
                 [tf.reduce_sum(tf.square(x)) for x in self.policy_params]) * 0.001
         total_loss = tf.reduce_mean(pg_loss)
         
-        """
-
-        def grad_per_example(per_example_loss, per_example_adv, params):
-            tmp_grad = self.optimizer.compute_gradients(per_example_loss, params)
-            for i, (grad, var) in enumerate(tmp_grad):
-                if grad is not None:
-                    tmp_grad[i] = (grad * per_example_adv, var)
-            
-            return tf.zeros([])
-
-        tf.scan(lambda a, x: grad_per_example(x[0], x[1], self.policy_params), 
-            (total_loss, advantage), tf.zeros([]))
-        optimizer = self.optimizer.apply_gradients(
-                self.policy_gradients, global_step=self.global_step)
-       
-        """
         self.policy_gradients = self.optimizer.compute_gradients(total_loss,
                 var_list=self.policy_params)
-
         optimize = self.optimizer.apply_gradients(self.policy_gradients,
                 global_step=self.global_step)
 

@@ -1,6 +1,7 @@
 import sys
 import numpy as np
 
+from tensorflow.core.framework import summary_pb2
 from evaluate import *
 
 def progress(_progress):
@@ -56,4 +57,9 @@ def pred_from_logits(start_logits, end_logits, batch_context_len, c_raws, params
         predictions.append(' '.join([w for w in c[s_idx: e_idx+1]]))
 
     return predictions
+
+def write_scalar_summary(name, value, iter, writer):
+    value_to_write = summary_pb2.Summary.Value(tag=name, simple_value=value)
+    summary = summary_pb2.Summary(value=[value_to_write])
+    writer.add_summary(summary, iter)
 
