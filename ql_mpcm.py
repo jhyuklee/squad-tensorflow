@@ -74,6 +74,7 @@ class QL_MPCM(MPCM):
             
             # Concat question and context [q, c_sim]
             if candidate is not None:
+                # TODO: concat c_state, too
                 question = tf.concat(axis=2, values=[question, candidate])
            
             # Bidirectional
@@ -153,10 +154,10 @@ class QL_MPCM(MPCM):
                         question_rep, c_state,
                         self.question_len, self.question_maxlen, 
                         candidate=candidate, reuse=(pp_idx>1))
-                print('# Paraphrase_layer %d' % (pp_idx), action_logit)
-                paraphrased = self.paraphrases[pp_idx-1]
                 self.action_probs.append(tf.nn.softmax(
                     tf.cast(action_logit, dtype=tf.float64)))
+                print('# Paraphrase_layer %d' % (pp_idx), action_logit)
+                paraphrased = self.paraphrases[pp_idx-1]
             else:
                 paraphrased = self.question
             

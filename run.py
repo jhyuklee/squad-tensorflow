@@ -37,42 +37,47 @@ def run_paraphrase(question, question_len, context_raws, context_len,
     def paraphrase_question(sentence, length, 
             actions, actions_prob, sim, max_action):
         new_sentence = []
-        itr = 0
         action_cnt = 0
-        # TODO: Choose only maximum probability actions (use actions_prob)
+        itr = 0
+
+        # Choose max actions that is not None
+        valid_probs = np.array([a[idx] for a, idx in zip(actions_prob, actions)])
+        valid_probs *= np.array(actions).astype(bool)
+        max_actions = valid_probs.argsort()[-max_action:][::-1]
+        dprint([(m, idx2action[actions[m]]) for m in max_actions], params['debug'])
 
         for idx, act in enumerate(actions):
-            if idx2action[act] == 'NONE':
+            if idx not in max_actions:
+                new_sentence.append(sentence[itr])
+                itr += 1
+            elif idx2action[act] == 'NONE':
                 new_sentence.append(sentence[itr])
                 itr += 1
             elif idx2action[act] == 'DEL':
                 itr += 1
-                action_cnt += 1
             elif idx2action[act] == 'SUB':
                 new_sentence.append(sim[itr])
                 itr += 1
-                action_cnt += 1
             elif idx2action[act] == 'INS':
                 new_sentence.append(sentence[itr])
                 new_sentence.append(sim[itr])
                 itr += 1
-                action_cnt += 1
-                length += 1
             else:
-                assert False, 'Wrong action %d'% act
+                assert False, 'Invalid action %d'% act
 
             if itr >= length:
                 break
-            if action_cnt >= max_action:
-                break
-        
+       
+        new_length = len(new_sentence)
         while len(new_sentence) <= len(sentence):
             new_sentence.append(1) # PAD token
         new_sentence = new_sentence[:model.question_maxlen]
+        new_length = (new_length if new_length < model.question_maxlen
+                else model.question_maxlen)
 
-        return new_sentence, length
+        return new_sentence, new_length
    
-    # Get paraphrased question according to the taken_action
+    # Get paraphrased question according to the taken_action (batch unpack)
     paraphrased_q = []
     paraphrased_qlen = []
     for org_q, org_q_len, action, a_prob, sim in zip(
@@ -84,7 +89,7 @@ def run_paraphrase(question, question_len, context_raws, context_len,
 
     # Get scores for paraphrased question
     feed_dict[model.paraphrases[pp_idx]] = np.array(paraphrased_q)
-    # TODO: add changed q len
+    feed_dict[model.question_len] = np.array(paraphrased_qlen)
     ps_logits, pe_logits = sess.run(model.pp_logits[pp_idx], feed_dict=feed_dict)
     predictions = pred_from_logits(ps_logits, pe_logits,
             context_len, context_raws, params)
@@ -104,12 +109,13 @@ def run_paraphrase(question, question_len, context_raws, context_len,
     dprint('similarity %s' % [idx2word[w] 
         for w in similarity[max_idx][:question_len[max_idx]]], params['debug'])
     dprint('changed %s' % [idx2word[w] 
-        for w in paraphrased_q[max_idx][:question_len[max_idx]]], params['debug'])
+        for w in paraphrased_q[max_idx][:paraphrased_qlen[max_idx]]], params['debug'])
    
     # Use REINFORE with original em, f1 as baseline (per example)
     rewards = np.sum([em_s, f1_s], axis=0) / 2
     baselines = np.sum([baseline_em, baseline_f1], axis=0) / 2
-    advantages = np.clip(rewards / (baselines + 1e-5) - 1, -1, 100) + rewards
+    advantages = np.clip(
+            rewards / (baselines + 1e-5) - 1, -1, params['rb_clip']) + rewards
     feed_dict[model.taken_actions[pp_idx]] = taken_action
     feed_dict[model.advantages[pp_idx]] = advantages
     _, pp_loss, summary = sess.run([

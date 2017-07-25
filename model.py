@@ -18,7 +18,7 @@ class Basic(object):
         self.session = tf.Session(config=config)
         self.params = params
         self.model_name = params['model_name']
-        self.ymdhm = params['ymdhm']
+        self.ymdhms = params['ymdhms']
 
         # rnn parameters
         self.max_grad_norm = params['max_grad_norm']
@@ -53,8 +53,14 @@ class Basic(object):
         self.question_mask = tf.sequence_mask(self.question_len, 
                 self.question_maxlen, dtype=tf.float32)
         self.global_step = tf.Variable(0, name="step", trainable=False)
-        self.optimizer = tf.train.AdamOptimizer(self.learning_rate)
-        # self.optimizer = tf.train.GradientDescentOptimizer(self.learning_rate)
+        if params['optimizer'] == 's': 
+            self.optimizer = tf.train.GradientDescentOptimizer(self.learning_rate)
+        elif params['optimizer'] == 'm':
+            self.optimizer = tf.train.MomentumOptimizer(self.learning_rate, 0.9)
+        elif params['optimizer'] == 'a':
+            self.optimizer = tf.train.AdamOptimizer(self.learning_rate)
+        else:
+            assert False, 'Wrong optimizer %s' % params['optimizer']
         self.no_op = tf.no_op()
         self.initialize_embedding(self.initializer)
 
@@ -187,9 +193,9 @@ class Basic(object):
         # could add self.session.graph
         if self.params['summarize']:
             self.train_writer = tf.summary.FileWriter(
-                    self.summary_dir + self.ymdhm + '/train') 
+                    self.summary_dir + self.ymdhms + '/train') 
             self.valid_writer = tf.summary.FileWriter(
-                    self.summary_dir + self.ymdhm + '/valid') 
+                    self.summary_dir + self.ymdhms + '/valid') 
 
     @staticmethod
     def reset_graph():
