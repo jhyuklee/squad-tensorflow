@@ -109,20 +109,20 @@ def run_paraphrase(question, question_len, context_raws, context_len,
     # Use REINFORE with original em, f1 as baseline (per example)
     rewards = np.sum([em_s, f1_s], axis=0) / 2
     baselines = np.sum([baseline_em, baseline_f1], axis=0) / 2
+    advantages = np.clip(rewards / (baselines + 1e-5) - 1, -1, 100) + rewards
     feed_dict[model.taken_actions[pp_idx]] = taken_action
-    feed_dict[model.rewards[pp_idx]] = rewards
-    feed_dict[model.baselines[pp_idx]] = baselines
+    feed_dict[model.advantages[pp_idx]] = advantages
     _, pp_loss, summary = sess.run([
         model.pp_optimize[pp_idx] if is_train else model.no_op,
         model.pp_loss[pp_idx], model.merged_summary], feed_dict=feed_dict)
 
-    advantage = np.sum(np.clip(rewards / (baselines + 1e-5), 0, 10) + rewards)
-    rewards = np.sum(rewards)
-    baselines = np.sum(baselines)
+    advantages = np.mean(advantages)
+    rewards = np.mean(rewards)
+    baselines = np.mean(baselines)
     pp_em = np.sum(em_s) / len(question)
     pp_f1 = np.sum(f1_s) / len(question)
 
-    return pp_em, pp_f1, pp_loss, advantage, rewards, baselines, summary
+    return pp_em, pp_f1, pp_loss, advantages, rewards, baselines, summary
 
 
 def run_epoch(model, dataset, epoch, base_iter, idx2word, params, is_train=True):

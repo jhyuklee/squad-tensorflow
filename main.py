@@ -6,6 +6,7 @@ import argparse
 import datetime
 import random
 import copy
+import os
 
 from model import Basic
 from mpcm import MPCM
@@ -26,11 +27,11 @@ flags.DEFINE_integer("context_maxlen", 0, "Predefined context length (0 for max)
 flags.DEFINE_float("rnn_dropout", 0.5, "Dropout of RNN cell")
 flags.DEFINE_float("hidden_dropout", 0.5, "Dropout rate of hidden layer")
 flags.DEFINE_float("embed_dropout", 0.8, "Dropout rate of embedding layer")
-flags.DEFINE_float("learning_rate", 0.001, "Init learning rate of the optimzier")
+flags.DEFINE_float("learning_rate", 1e-4, "Init learning rate of the optimzier")
 flags.DEFINE_float("max_grad_norm", 5.0, "Maximum gradient to clip")
 
 # Run options
-flags.DEFINE_integer('train_epoch', 10, 'Training epoch')
+flags.DEFINE_integer('train_epoch', 30, 'Training epoch')
 flags.DEFINE_integer('test_epoch', 1, 'Test for every n training epoch')
 flags.DEFINE_integer("validation_cnt", 100, "Number of model validation")
 flags.DEFINE_boolean("debug", False, "True to show debug message")
@@ -52,7 +53,7 @@ flags.DEFINE_integer("dim_perspective", 20, "Maximum number of perspective (20)"
 # Paraphrase settings
 flags.DEFINE_integer("num_paraphrase", 1, "Maximum iter of question paraphrasing")
 flags.DEFINE_integer("dim_action", 4, "Dimension of action space")
-flags.DEFINE_integer("max_action", 5, "Maximum possible sampled actions")
+flags.DEFINE_integer("max_action", 100, "Maximum possible sampled actions")
 flags.DEFINE_integer("pp_dim_rnn_cell", 100, "Dimension of RNN cell (100)")
 flags.DEFINE_integer("pp_rnn_layer", 3, "Layer number of RNN")
 flags.DEFINE_float("init_exp", 0.0, "Initial exploration prob")
@@ -67,11 +68,11 @@ flags.DEFINE_string('logit_func', 'tri_linear', 'logit func [tri_linear]')
 flags.DEFINE_string('answer_func', 'linear', 'answer logit func [linear]')
 
 # Path settings
-flags.DEFINE_string('checkpoint_dir', './result/ckpt/', 'Checkpoint directory')
-flags.DEFINE_string('summary_writer_dir', './result/summary/', 'summary writer')
+flags.DEFINE_string('checkpoint_dir', './results/ckpt/', 'Checkpoint directory')
+flags.DEFINE_string('summary_dir', './results/summary/', 'summary writer')
 flags.DEFINE_string('train_path', './data/train-v1.1.json', 'Training dataset path')
 flags.DEFINE_string('dev_path', './data/dev-v1.1.json',  'Development dataset path')
-flags.DEFINE_string('pred_path', './result/dev-v1.1-pred.json', 'Pred output path')
+flags.DEFINE_string('pred_path', './results/dev-v1.1-pred.json', 'Pred output path')
 flags.DEFINE_string("glove_size", "6", "use 6B or 840B for glove")
 flags.DEFINE_string('glove_path', \
         ('~/common/glove/glove.'+ tf.app.flags.FLAGS.glove_size + 'B.'
@@ -157,6 +158,12 @@ def main(_):
     # Parse arguments and flags
     expected_version = '1.1'
     saved_params = FLAGS.__flags
+
+    # Make directories
+    if not os.path.exists(saved_params['checkpoint_dir']):
+        os.makedirs(saved_params['checkpoint_dir'])
+    if not os.path.exists(saved_params['summary_dir']):
+        os.makedirs(saved_params['summary_dir'])
 
     # Load dataset once
     train_path = saved_params['train_path']

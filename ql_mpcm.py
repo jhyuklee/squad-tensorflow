@@ -15,8 +15,7 @@ class QL_MPCM(MPCM):
         self.pp_dim_rnn_cell = params['pp_dim_rnn_cell']
         self.pp_rnn_layer = params['pp_rnn_layer']
         self.exploration = self.init_exp
-        self.rewards = []
-        self.baselines = []
+        self.advantages = []
         self.paraphrases = [] # paraphrased question after applying action rules
         self.pp_logits = [] # logits after paraphrasing
         self.pp_loss = []
@@ -24,8 +23,7 @@ class QL_MPCM(MPCM):
         self.taken_actions = []
         self.action_probs = []
         for _ in range(self.num_paraphrase):
-            self.rewards.append(tf.placeholder(tf.float32, [None]))
-            self.baselines.append(tf.placeholder(tf.float32, [None]))
+            self.advantages.append(tf.placeholder(tf.float32, [None]))
             self.taken_actions.append(tf.placeholder(tf.int32, 
                 [None, params['question_maxlen']]))
             self.paraphrases.append(tf.placeholder(tf.int32, 
@@ -97,8 +95,7 @@ class QL_MPCM(MPCM):
 
     def optimize_pp(self, action_logit, paraphrase_cnt):
         print("# Calculating Paraphrased Loss\n")
-        reward = self.rewards[paraphrase_cnt]
-        baseline = self.baselines[paraphrase_cnt]
+        advantage = self.advantages[paraphrase_cnt]
         taken_action = self.taken_actions[paraphrase_cnt]
 
         # Add regularizer maybe (reg_loss)
@@ -108,8 +105,6 @@ class QL_MPCM(MPCM):
                 weights=self.question_mask,
                 average_across_batch=False)
         tf.summary.scalar('policy loss', tf.reduce_mean(pg_loss))
-
-        advantage = tf.clip_by_value(reward / (baseline + 1e-5), 0, 10) + reward
         pg_loss *= advantage
        
         # Optimize only paraphrase params 
@@ -138,8 +133,6 @@ class QL_MPCM(MPCM):
         tf.summary.scalar('reg loss', reg_loss)
         tf.summary.scalar('total loss', tf.reduce_mean(total_loss))
         tf.summary.scalar('advantage', tf.reduce_mean(advantage))
-        tf.summary.scalar('reward', tf.reduce_mean(reward))
-        tf.summary.scalar('baseline', tf.reduce_mean(baseline))
 
     def build_model(self):
         print("Question Learning Model")

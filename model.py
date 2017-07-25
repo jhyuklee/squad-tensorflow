@@ -32,7 +32,7 @@ class Basic(object):
         self.dim_output = params['dim_output']
         self.embed_trainable = params['embed_trainable']
         self.checkpoint_dir = params['checkpoint_dir']
-        self.summary_writer_dir = params['summary_writer_dir']
+        self.summary_dir = params['summary_dir']
         self.initializer, self.dictionary = initializer
 
         # input data placeholders
@@ -54,6 +54,7 @@ class Basic(object):
                 self.question_maxlen, dtype=tf.float32)
         self.global_step = tf.Variable(0, name="step", trainable=False)
         self.optimizer = tf.train.AdamOptimizer(self.learning_rate)
+        # self.optimizer = tf.train.GradientDescentOptimizer(self.learning_rate)
         self.no_op = tf.no_op()
         self.initialize_embedding(self.initializer)
 
@@ -186,9 +187,9 @@ class Basic(object):
         # could add self.session.graph
         if self.params['summarize']:
             self.train_writer = tf.summary.FileWriter(
-                    self.summary_writer_dir + self.ymdhm + '/train') 
+                    self.summary_dir + self.ymdhm + '/train') 
             self.valid_writer = tf.summary.FileWriter(
-                    self.summary_writer_dir + self.ymdhm + '/valid') 
+                    self.summary_dir + self.ymdhm + '/valid') 
 
     @staticmethod
     def reset_graph():
