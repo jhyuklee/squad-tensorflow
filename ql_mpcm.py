@@ -47,9 +47,9 @@ class QL_MPCM(MPCM):
             cont_sim = tf.matmul(n_context, b_sim_mat)
             self.similarity = tf.matmul(cont_sim, tr_question)
             
-            c_sim = tf.argmax(tf.transpose(self.similarity, [0, 2, 1]), axis=2)
+            self.c_sim = tf.argmax(tf.transpose(self.similarity, [0, 2, 1]), axis=2)
             self.selected_context = tf.scan(lambda a, x: tf.gather(x[0], x[1]),
-                    (self.context, c_sim), 
+                    (self.context, self.c_sim), 
                     tf.zeros([self.question_maxlen], dtype=tf.int32))
             
         selected_embed = dropout(embedding_lookup(
@@ -74,7 +74,9 @@ class QL_MPCM(MPCM):
             
             # Concat question and context [q, c_sim]
             if candidate is not None:
-                # TODO: concat c_state, too
+                # Cannot concat 100D to 300D !
+                c_fw_h = c_state[0][0][1]
+                c_bw_h = c_state[1][0][1]
                 question = tf.concat(axis=2, values=[question, candidate])
            
             # Bidirectional

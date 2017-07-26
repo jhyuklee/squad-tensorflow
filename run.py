@@ -4,19 +4,23 @@ import numpy as np
 from evaluate import *
 from utils import *
 
-def run_paraphrase(question, question_len, context_raws, context_len, 
-        ground_truths, sim_mat, baseline_em, baseline_f1, pp_idx, idx2word, 
-        model, feed_dict, params, is_train):
+def run_paraphrase(question, question_len, context, context_len, 
+        context_raws, ground_truths, baseline_em, baseline_f1, 
+        pp_idx, idx2word, model, feed_dict, params, is_train):
 
     idx2action = {
             0: 'NONE',
             1: 'DEL',
-            2: 'SUB',
-            3: 'INS'
+            2: 'SUB0',
+            4: 'SUB1',
+            5: 'SUB2',
+            3: 'INS0',
+            6: 'INS1',
+            7: 'INS2'
     }
     sess = model.session
-    action_prob, similarity = sess.run(
-            [model.action_probs[pp_idx], model.selected_context],
+    action_prob, c_sim = sess.run(
+            [model.action_probs[pp_idx], model.c_sim],
             feed_dict=feed_dict)
 
     def softmax(logit):
@@ -35,16 +39,16 @@ def run_paraphrase(question, question_len, context_raws, context_len,
         taken_action.append(actions)
 
     def paraphrase_question(sentence, length, 
-            actions, actions_prob, sim, max_action):
+            actions, actions_prob, c_s, c_org, max_a):
         new_sentence = []
         action_cnt = 0
         itr = 0
 
-        # Choose max actions that is not None
+        # Choose max actions that is not 'NONE'
         valid_probs = np.array([a[idx] for a, idx in zip(actions_prob, actions)])
         valid_probs *= np.array(actions).astype(bool)
-        max_actions = valid_probs.argsort()[-max_action:][::-1]
-        dprint([(m, idx2action[actions[m]]) for m in max_actions], params['debug'])
+        max_actions = valid_probs.argsort()[-max_a:][::-1]
+        # dprint([(m, idx2action[actions[m]]) for m in max_actions], params['debug'])
 
         for idx, act in enumerate(actions):
             if idx not in max_actions:
@@ -55,12 +59,38 @@ def run_paraphrase(question, question_len, context_raws, context_len,
                 itr += 1
             elif idx2action[act] == 'DEL':
                 itr += 1
-            elif idx2action[act] == 'SUB':
-                new_sentence.append(sim[itr])
+            elif idx2action[act] == 'SUB0':
+                new_sentence.append(c_org[c_s[itr]])
                 itr += 1
-            elif idx2action[act] == 'INS':
+            elif idx2action[act] == 'SUB1':
+                new_sentence.append(c_org[c_s[itr]])
+                if c_s[itr] < params['context_maxlen']-1:
+                    new_sentence.append(c_org[c_s[itr]+1])
+                itr += 1
+            elif idx2action[act] == 'SUB2':
+                new_sentence.append(c_org[c_s[itr]])
+                if c_s[itr] < params['context_maxlen']-1:
+                    new_sentence.append(c_org[c_s[itr]+1])
+                if c_s[itr] < params['context_maxlen']-2:
+                    new_sentence.append(c_org[c_s[itr]+2])
+                itr += 1
+            elif idx2action[act] == 'INS0':
                 new_sentence.append(sentence[itr])
-                new_sentence.append(sim[itr])
+                new_sentence.append(c_org[c_s[itr]])
+                itr += 1
+            elif idx2action[act] == 'INS1':
+                new_sentence.append(sentence[itr])
+                new_sentence.append(c_org[c_s[itr]])
+                if c_s[itr] < params['context_maxlen']-1:
+                    new_sentence.append(c_org[c_s[itr]+1])
+                itr += 1
+            elif idx2action[act] == 'INS2':
+                new_sentence.append(sentence[itr])
+                new_sentence.append(c_org[c_s[itr]])
+                if c_s[itr] < params['context_maxlen']-1:
+                    new_sentence.append(c_org[c_s[itr]+1])
+                if c_s[itr] < params['context_maxlen']-2:
+                    new_sentence.append(c_org[c_s[itr]+2])
                 itr += 1
             else:
                 assert False, 'Invalid action %d'% act
@@ -80,10 +110,10 @@ def run_paraphrase(question, question_len, context_raws, context_len,
     # Get paraphrased question according to the taken_action (batch unpack)
     paraphrased_q = []
     paraphrased_qlen = []
-    for org_q, org_q_len, action, a_prob, sim in zip(
-            question, question_len, taken_action, action_prob, similarity):
+    for org_q, org_q_len, action, a_prob, c_s, org_c in zip(
+            question, question_len, taken_action, action_prob, c_sim, context):
         new_q, new_qlen = paraphrase_question(
-                org_q, org_q_len, action, a_prob, sim, model.max_action)
+                org_q, org_q_len, action, a_prob, c_s, org_c, model.max_action)
         paraphrased_q.append(new_q)
         paraphrased_qlen.append(new_qlen)
 
@@ -106,8 +136,8 @@ def run_paraphrase(question, question_len, context_raws, context_len,
                 params['debug'])
     dprint('original %s' % [idx2word[w] 
         for w in question[max_idx][:question_len[max_idx]]], params['debug'])
-    dprint('similarity %s' % [idx2word[w] 
-        for w in similarity[max_idx][:question_len[max_idx]]], params['debug'])
+    dprint('similarity %s' % [idx2word[context[max_idx, w]]
+        for w in c_sim[max_idx][:question_len[max_idx]]], params['debug'])
     dprint('changed %s' % [idx2word[w] 
         for w in paraphrased_q[max_idx][:paraphrased_qlen[max_idx]]], params['debug'])
    
@@ -216,11 +246,9 @@ def run_epoch(model, dataset, epoch, base_iter, idx2word, params, is_train=True)
                     for pp_idx in range(params['num_paraphrase']):
                         tmp_em, tmp_f1, tmp_loss, adv, tmp_r, tmp_b, summary = \
                                 run_paraphrase(
-                                        batch_question,
-                                        batch_question_len,
-                                        context_raws,
-                                        batch_context_len,
-                                        ground_truths, None, # Deprecated
+                                        batch_question, batch_question_len,
+                                        batch_context, batch_context_len,
+                                        context_raws, ground_truths, 
                                         baseline_em, baseline_f1, pp_idx, idx2word,
                                         model, feed_dict, params, is_train=is_train)
                         pp_em[pp_idx] += tmp_em
