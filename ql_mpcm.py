@@ -14,6 +14,10 @@ class QL_MPCM(MPCM):
         self.final_exp = params['final_exp']
         self.pp_dim_rnn_cell = params['pp_dim_rnn_cell']
         self.pp_rnn_layer = params['pp_rnn_layer']
+        self.policy_q = params['policy_q']
+        self.policy_c = params['policy_c']
+        self.similarity_q = params['similarity_q']
+        self.similarity_c = params['similarity_c']
         self.exploration = self.init_exp
         self.advantages = []
         self.paraphrases = [] # paraphrased question after applying action rules
@@ -30,7 +34,7 @@ class QL_MPCM(MPCM):
                 [None, params['question_maxlen']]))
         super(QL_MPCM, self).__init__(params, initializer)
 
-    def similarity_layer(self, context, question, reuse=None):
+    def similarity_layer(self, context, question, context_rep, reuse=None):
         with tf.variable_scope('Similarity_Layer', reuse=reuse) as scope:
             c_norm = tf.sqrt(
                     tf.maximum(tf.reduce_sum(tf.square(context), axis=-1), 1e-6))
@@ -51,16 +55,20 @@ class QL_MPCM(MPCM):
             self.selected_context = tf.scan(lambda a, x: tf.gather(x[0], x[1]),
                     (self.context, self.c_sim), 
                     tf.zeros([self.question_maxlen], dtype=tf.int32))
-            
-        selected_embed = dropout(embedding_lookup(
-                inputs=self.selected_context,
-                voca_size=self.voca_size,
-                embedding_dim=self.dim_embed_word, 
-                initializer=self.initializer, 
-                trainable=self.embed_trainable,
-                reuse=True, scope='Word'), self.embed_dropout)
+        
+        if self.policy_c == 'e':
+            candidate = dropout(embedding_lookup(
+                    inputs=self.selected_context,
+                    voca_size=self.voca_size,
+                    embedding_dim=self.dim_embed_word, 
+                    initializer=self.initializer, 
+                    trainable=self.embed_trainable,
+                    reuse=True, scope='Word'), self.embed_dropout)
+        else:
+            # TODO: use context_rep for gathering
+            candidate = None
 
-        return selected_embed
+        return candidate
     
     def paraphrase_layer(self, question, c_state, length, max_length, 
             candidate=None, reuse=None):
@@ -72,12 +80,12 @@ class QL_MPCM(MPCM):
                     [self.dim_action],                 
                     initializer=tf.constant_initializer(0.0))
             
-            # Concat question and context [q, c_sim]
+            # Concat question and context [q, c_sim, c_fb]
             if candidate is not None:
-                # Cannot concat 100D to 300D !
-                c_fw_h = c_state[0][0][1]
-                c_bw_h = c_state[1][0][1]
-                question = tf.concat(axis=2, values=[question, candidate])
+                c_fb = tf.concat(axis=1, values=[c_state[0][0][1], c_state[1][0][1]])
+                c_t = tf.tile(tf.expand_dims(c_fb, axis=1),
+                        [1, self.question_maxlen, 1])
+                question = tf.concat(axis=2, values=[question, candidate, c_t])
            
             # Bidirectional
             fw_cell = lstm_cell(
@@ -147,20 +155,30 @@ class QL_MPCM(MPCM):
                 trainable=self.embed_trainable,
                 reuse=True, scope='Word'), self.embed_dropout)
 
-        start_logits = [] 
-        end_logits = []
         for pp_idx in range(self.num_paraphrase + 1):
-            if pp_idx > 0:
-                candidate = self.similarity_layer(context_embed, question_embed)
+            if pp_idx > 0: # Start paraphrase
+                # Similarity calculate
+                similarity_q = (question_embed if self.similarity_q == 'e'
+                        else question_rep)
+                similarity_c = (context_embed if self.similarity_c == 'e'
+                        else context_rep)
+                candidate = self.similarity_layer(similarity_c, similarity_q,
+                        context_rep)
+
+                # Policy network for paraphrase
+                policy_q = (question_embed if self.policy_q == 'e'
+                        else question_rep)
                 _, action_logit = self.paraphrase_layer(
-                        question_rep, c_state,
+                        policy_q, c_state,
                         self.question_len, self.question_maxlen, 
                         candidate=candidate, reuse=(pp_idx>1))
+                
+                # Return policy and receive sample
                 self.action_probs.append(tf.nn.softmax(
                     tf.cast(action_logit, dtype=tf.float64)))
-                print('# Paraphrase_layer %d' % (pp_idx), action_logit)
                 paraphrased = self.paraphrases[pp_idx-1]
-            else:
+                print('# Paraphrase_layer %d' % (pp_idx), action_logit)
+            else: # No paraphrase (pp_idx = 0)
                 paraphrased = self.question
             
             question_embed = dropout(embedding_lookup(
