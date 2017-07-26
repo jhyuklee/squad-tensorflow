@@ -1,7 +1,7 @@
 import tensorflow as tf
 import os
 import datetime
-
+import sys
 from ops import *
 
 
@@ -127,6 +127,9 @@ class Basic(object):
             logits=start_logits, labels=self.answer_start)) 
         end_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
             logits=end_logits, labels=self.answer_end))
+        #start_loss = tf.Print(start_loss, [start_loss, end_loss], "loss : ")
+        start_loss = tf.clip_by_value(start_loss, -1, 10)
+        end_loss = tf.clip_by_value(end_loss, -1, 10)
         self.loss = start_loss + end_loss
         tf.summary.scalar('Loss', self.loss)
         
@@ -182,6 +185,20 @@ class Basic(object):
 
     def load(self, checkpoint_dir):
         file_name = "%s.model" % self.model_name
+        file_name = self.model_name   # hyunjae
         self.loader.restore(self.session, os.path.join(checkpoint_dir, file_name))
         print("Model loaded", file_name)
+
+    def load_pre_bidaf(self, sess):
+        vars_ = {var.name.split(":")[0]: var for var in tf.global_variables()}
+        if config.load_ema:
+            ema = self.model.var_ema
+            for var in tf.trainable_variables():
+                del vars_[var.name.split(":")[0]]
+                vars_[ema.average_name(var)] = var
+        saver = tf.train.Saver(vars_)
+
+        save_path = "../pretrained/basic-10000"
+        print("Loading saved model from {}".format(save_path))
+        saver.restore(sess, save_path)
 

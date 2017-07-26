@@ -54,9 +54,15 @@ flags.DEFINE_integer("num_action", 2, "Number of action space.")
 flags.DEFINE_boolean("train_pp_only", True, "True to train paraphrase only")
 
 # Bidaf settings
+flags.DEFINE_integer("highway_num_layers", 2, "highway_num_layers [2]")
+flags.DEFINE_integer("hidden_size", 100, "Hidden size [100]")
 flags.DEFINE_float("input_keep_prob", 0.8, "Input keep prob of LSTM weights [0.8]")
 flags.DEFINE_float("wd", 0.0, "L2 weight decay for regularization [0.0]")
 flags.DEFINE_boolean("share_lstm_weights", True, "Share preprocessed LSTM weights [True]")
+flags.DEFINE_boolean("use_char_emb", True, "use char emb? [True]")
+flags.DEFINE_boolean("use_word_emb", True, "use word emb? [True]")
+flags.DEFINE_boolean("highway", True, "Use highway? [True]")
+flags.DEFINE_boolean('load_seo', True, "load Seo's pretrained bidaf")
 flags.DEFINE_string('logit_func', 'tri_linear', 'logit func [tri_linear]')
 flags.DEFINE_string('answer_func', 'linear', 'answer logit func [linear]')
 
