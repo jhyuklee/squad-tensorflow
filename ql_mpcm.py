@@ -48,25 +48,26 @@ class QL_MPCM(MPCM):
             b_sim_mat = tf.scan(lambda a, x: tf.identity(sim_mat), 
                     context, tf.zeros([self.dim_embed_word, self.dim_embed_word], 
                         dtype=tf.float32)) 
-            cont_sim = tf.matmul(n_context, b_sim_mat)
-            self.similarity = tf.matmul(cont_sim, tr_question)
-            
+            tmp_cont_sim = tf.matmul(n_context, b_sim_mat)
+            self.similarity = tf.matmul(tmp_cont_sim, tr_question)
             self.c_sim = tf.argmax(tf.transpose(self.similarity, [0, 2, 1]), axis=2)
-            self.selected_context = tf.scan(lambda a, x: tf.gather(x[0], x[1]),
-                    (self.context, self.c_sim), 
-                    tf.zeros([self.question_maxlen], dtype=tf.int32))
         
         if self.policy_c == 'e':
+            selected_context = tf.scan(lambda a, x: tf.gather(x[0], x[1]),
+                    (self.context, self.c_sim), 
+                    tf.zeros([self.question_maxlen], dtype=tf.int32))
             candidate = dropout(embedding_lookup(
-                    inputs=self.selected_context,
+                    inputs=selected_context,
                     voca_size=self.voca_size,
                     embedding_dim=self.dim_embed_word, 
                     initializer=self.initializer, 
                     trainable=self.embed_trainable,
                     reuse=True, scope='Word'), self.embed_dropout)
         else:
-            # TODO: use context_rep for gathering
-            candidate = None
+            candidate = tf.scan(lambda a, x: tf.gather(x[0], x[1]),
+                    (context_rep, self.c_sim), 
+                    tf.zeros([self.question_maxlen, self.dim_rnn_cell * 2], 
+                        dtype=tf.float32))
 
         return candidate
     
@@ -178,6 +179,7 @@ class QL_MPCM(MPCM):
                     tf.cast(action_logit, dtype=tf.float64)))
                 paraphrased = self.paraphrases[pp_idx-1]
                 print('# Paraphrase_layer %d' % (pp_idx), action_logit)
+
             else: # No paraphrase (pp_idx = 0)
                 paraphrased = self.question
             

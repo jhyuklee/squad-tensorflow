@@ -32,7 +32,7 @@ flags.DEFINE_float("max_grad_norm", 5.0, "Maximum gradient to clip")
 flags.DEFINE_string("optimizer", "m", "[s]sgd [m]momentum [a]adam")
 
 # Run options
-flags.DEFINE_integer('train_epoch', 30, 'Training epoch')
+flags.DEFINE_integer('train_epoch', 100, 'Training epoch')
 flags.DEFINE_integer('test_epoch', 1, 'Test for every n training epoch')
 flags.DEFINE_integer("validation_cnt", 100, "Number of model validation")
 flags.DEFINE_boolean("debug", False, "True to show debug message")
@@ -54,11 +54,11 @@ flags.DEFINE_integer("dim_perspective", 20, "Maximum number of perspective (20)"
 # Paraphrase settings
 flags.DEFINE_integer("num_paraphrase", 1, "Maximum iter of question paraphrasing")
 flags.DEFINE_integer("dim_action", 4, "Dimension of action space")
-flags.DEFINE_integer("max_action", 100, "Maximum possible sampled actions")
+flags.DEFINE_integer("max_action", 0, "Maximum possible sampled actions")
 flags.DEFINE_integer("rb_clip", 2, "Maximum R/B clip")
 flags.DEFINE_integer("pp_dim_rnn_cell", 100, "Dimension of RNN cell (100)")
 flags.DEFINE_integer("pp_rnn_layer", 3, "Layer number of RNN")
-flags.DEFINE_string("policy_q", "e", "question [e] embed [h] hidden")
+flags.DEFINE_string("policy_q", "h", "question [e] embed [h] hidden")
 flags.DEFINE_string("policy_c", "e", "context [e] embed [h] hidden")
 flags.DEFINE_string("similarity_q", "e", "question [e] embed [h] hidden")
 flags.DEFINE_string("similarity_c", "e", "context [e] embed [h] hidden")

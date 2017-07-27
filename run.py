@@ -8,15 +8,18 @@ def run_paraphrase(question, question_len, context, context_len,
         context_raws, ground_truths, baseline_em, baseline_f1, 
         pp_idx, idx2word, model, feed_dict, params, is_train):
 
-    idx2action = {
+    idx2action = { # 4=NDSI0, 6=NDSI1, 8=NDSI2, 11: NDSI2B
             0: 'NONE',
             1: 'DEL',
             2: 'SUB0',
             4: 'SUB1',
-            5: 'SUB2',
-            3: 'INS0',
-            6: 'INS1',
-            7: 'INS2'
+            6: 'SUB2',
+            3: 'INS0F',
+            5: 'INS1F',
+            7: 'INS2F',
+            8: 'INS0B',
+            9: 'INS1B',
+            10: 'INS2B'
     }
     sess = model.session
     action_prob, c_sim = sess.run(
@@ -51,7 +54,7 @@ def run_paraphrase(question, question_len, context, context_len,
         # dprint([(m, idx2action[actions[m]]) for m in max_actions], params['debug'])
 
         for idx, act in enumerate(actions):
-            if idx not in max_actions:
+            if idx not in max_actions and max_a > 0:
                 new_sentence.append(sentence[itr])
                 itr += 1
             elif idx2action[act] == 'NONE':
@@ -74,23 +77,41 @@ def run_paraphrase(question, question_len, context, context_len,
                 if c_s[itr] < params['context_maxlen']-2:
                     new_sentence.append(c_org[c_s[itr]+2])
                 itr += 1
-            elif idx2action[act] == 'INS0':
+            elif idx2action[act] == 'INS0F':
                 new_sentence.append(sentence[itr])
                 new_sentence.append(c_org[c_s[itr]])
                 itr += 1
-            elif idx2action[act] == 'INS1':
+            elif idx2action[act] == 'INS1F':
                 new_sentence.append(sentence[itr])
                 new_sentence.append(c_org[c_s[itr]])
                 if c_s[itr] < params['context_maxlen']-1:
                     new_sentence.append(c_org[c_s[itr]+1])
                 itr += 1
-            elif idx2action[act] == 'INS2':
+            elif idx2action[act] == 'INS2F':
                 new_sentence.append(sentence[itr])
                 new_sentence.append(c_org[c_s[itr]])
                 if c_s[itr] < params['context_maxlen']-1:
                     new_sentence.append(c_org[c_s[itr]+1])
                 if c_s[itr] < params['context_maxlen']-2:
                     new_sentence.append(c_org[c_s[itr]+2])
+                itr += 1
+            elif idx2action[act] == 'INS0B':
+                new_sentence.append(c_org[c_s[itr]])
+                new_sentence.append(sentence[itr])
+                itr += 1
+            elif idx2action[act] == 'INS1B':
+                new_sentence.append(c_org[c_s[itr]])
+                if c_s[itr] < params['context_maxlen']-1:
+                    new_sentence.append(c_org[c_s[itr]+1])
+                new_sentence.append(sentence[itr])
+                itr += 1
+            elif idx2action[act] == 'INS2B':
+                new_sentence.append(c_org[c_s[itr]])
+                if c_s[itr] < params['context_maxlen']-1:
+                    new_sentence.append(c_org[c_s[itr]+1])
+                if c_s[itr] < params['context_maxlen']-2:
+                    new_sentence.append(c_org[c_s[itr]+2])
+                new_sentence.append(sentence[itr])
                 itr += 1
             else:
                 assert False, 'Invalid action %d'% act
