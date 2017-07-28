@@ -13,7 +13,7 @@ from mpcm import MPCM
 from ql_mpcm import QL_MPCM
 # from bidaf import BiDAF
 from time import gmtime, strftime
-from dataset import read_data, build_dict, load_glove, preprocess
+from dataset import read_data, build_dict, load_glove, preprocess, load_lm
 from run import run_epoch
 
 flags = tf.app.flags
@@ -27,7 +27,7 @@ flags.DEFINE_integer("context_maxlen", 0, "Predefined context length (0 for max)
 flags.DEFINE_float("rnn_dropout", 0.5, "Dropout of RNN cell")
 flags.DEFINE_float("hidden_dropout", 0.5, "Dropout rate of hidden layer")
 flags.DEFINE_float("embed_dropout", 0.8, "Dropout rate of embedding layer")
-flags.DEFINE_float("learning_rate", 1e-4, "Init learning rate of the optimzier")
+flags.DEFINE_float("learning_rate", 1e-3, "Init learning rate of the optimzier")
 flags.DEFINE_float("max_grad_norm", 5.0, "Maximum gradient to clip")
 flags.DEFINE_string("optimizer", "m", "[s]sgd [m]momentum [a]adam")
 
@@ -53,12 +53,12 @@ flags.DEFINE_integer("dim_perspective", 20, "Maximum number of perspective (20)"
 
 # Paraphrase settings
 flags.DEFINE_integer("num_paraphrase", 1, "Maximum iter of question paraphrasing")
-flags.DEFINE_integer("dim_action", 4, "Dimension of action space")
+flags.DEFINE_integer("dim_action", 8, "Dimension of action space")
 flags.DEFINE_integer("max_action", 0, "Maximum possible sampled actions")
 flags.DEFINE_integer("rb_clip", 2, "Maximum R/B clip")
 flags.DEFINE_integer("pp_dim_rnn_cell", 100, "Dimension of RNN cell (100)")
 flags.DEFINE_integer("pp_rnn_layer", 3, "Layer number of RNN")
-flags.DEFINE_string("policy_q", "h", "question [e] embed [h] hidden")
+flags.DEFINE_string("policy_q", "e", "question [e] embed [h] hidden")
 flags.DEFINE_string("policy_c", "e", "context [e] embed [h] hidden")
 flags.DEFINE_string("similarity_q", "e", "question [e] embed [h] hidden")
 flags.DEFINE_string("similarity_c", "e", "context [e] embed [h] hidden")
@@ -79,6 +79,7 @@ flags.DEFINE_string('summary_dir', './results/summary/', 'summary writer')
 flags.DEFINE_string('train_path', './data/train-v1.1.json', 'Training dataset path')
 flags.DEFINE_string('dev_path', './data/dev-v1.1.json',  'Development dataset path')
 flags.DEFINE_string('pred_path', './results/dev-v1.1-pred.json', 'Pred output path')
+flags.DEFINE_string('lm_path', './data/langmodel.pkl', 'Pretrained LM path')
 flags.DEFINE_string("glove_size", "6", "use 6B or 840B for glove")
 flags.DEFINE_string('glove_path', \
         ('~/common/glove/glove.'+ tf.app.flags.FLAGS.glove_size + 'B.'
@@ -95,19 +96,23 @@ def run(model, params, train_dataset, dev_dataset, idx2word):
     init_lr = params['learning_rate']
     early_stop = params['early_stop']
     train_iter = valid_iter = 0
+    if params['mode'] == 'q':
+        LM = load_lm(params['lm_path']) 
+    else:
+        LM = None
 
     for epoch_idx in range(train_epoch):
         if params['train']:
             start_time = datetime.datetime.now()
             print("\n[Epoch %d]" % (epoch_idx + 1))
             _, _, _, train_iter = run_epoch(model, train_dataset, epoch_idx + 1, 
-                    train_iter, idx2word, params, is_train=True)
+                    train_iter, idx2word, params, is_train=True, lang_model=LM)
             elapsed_time = datetime.datetime.now() - start_time
             print('Epoch %d Done in %s' % (epoch_idx + 1, elapsed_time))
         
         if (epoch_idx + 1) % test_epoch == 0:
             em, f1, loss, valid_iter = run_epoch(model, dev_dataset, 0, 
-                    valid_iter, idx2word, params, is_train=False)
+                    valid_iter, idx2word, params, is_train=False, lang_model=LM)
             
             if max_f1 > f1 - 1e-2 and epoch_idx > 0 and early_stop:
                 print('Max em: %.3f, f1: %.3f, epoch: %d' % (max_em, max_f1, max_ep))
@@ -200,6 +205,7 @@ def main(_):
     saved_params['question_maxlen'] = q_maxlen
     saved_params['voca_size'] = len(word2idx)
     saved_params['dim_output'] = c_maxlen
+    
 
     for model_idx in range(saved_params['validation_cnt']):
         # Copy params, ready for validation

@@ -5,7 +5,7 @@ from evaluate import *
 from utils import *
 
 def run_paraphrase(question, question_len, context, context_len, 
-        context_raws, ground_truths, baseline_em, baseline_f1, 
+        context_raws, ground_truths, baseline_em, baseline_f1, lang_model, 
         pp_idx, idx2word, model, feed_dict, params, is_train):
 
     idx2action = { # 4=NDSI0, 6=NDSI1, 8=NDSI2, 11: NDSI2B
@@ -54,7 +54,8 @@ def run_paraphrase(question, question_len, context, context_len,
         # dprint([(m, idx2action[actions[m]]) for m in max_actions], params['debug'])
 
         for idx, act in enumerate(actions):
-            if idx not in max_actions and max_a > 0:
+            if (idx not in max_actions) and max_a > 0:
+                print('not here please')
                 new_sentence.append(sentence[itr])
                 itr += 1
             elif idx2action[act] == 'NONE':
@@ -182,7 +183,8 @@ def run_paraphrase(question, question_len, context, context_len,
     return pp_em, pp_f1, pp_loss, advantages, rewards, baselines, summary
 
 
-def run_epoch(model, dataset, epoch, base_iter, idx2word, params, is_train=True):
+def run_epoch(model, dataset, epoch, base_iter, idx2word, params, 
+        is_train=True, lang_model=None):
     print('### Training ###' if is_train else '\n### Testing ###')
     sess = model.session
     batch_size = params['batch_size']
@@ -263,14 +265,15 @@ def run_epoch(model, dataset, epoch, base_iter, idx2word, params, is_train=True)
 
                 baseline_em = em
                 baseline_f1 = f1
-                if 'q' == params['mode']:
+                if params['mode'] == 'q':
                     for pp_idx in range(params['num_paraphrase']):
                         tmp_em, tmp_f1, tmp_loss, adv, tmp_r, tmp_b, summary = \
                                 run_paraphrase(
                                         batch_question, batch_question_len,
                                         batch_context, batch_context_len,
                                         context_raws, ground_truths, 
-                                        baseline_em, baseline_f1, pp_idx, idx2word,
+                                        baseline_em, baseline_f1, lang_model,
+                                        pp_idx, idx2word,
                                         model, feed_dict, params, is_train=is_train)
                         pp_em[pp_idx] += tmp_em
                         pp_f1[pp_idx] += tmp_f1
@@ -313,7 +316,7 @@ def run_epoch(model, dataset, epoch, base_iter, idx2word, params, is_train=True)
                     _progress += "loss:%.2f, em:%.2f, f1:%.2f" % (loss, em, f1)
                     _progress += ", idx:%d/%d [e%d]" %(
                             dataset_idx, len(dataset), epoch)
-                    if 'q' == params['mode']:
+                    if params['mode'] == 'q':
                         _progress += " adv:%.2f" % (pp_advantage[0]/pp_cnt)
                     sys.stdout.write(_progress)
                     sys.stdout.flush()
@@ -335,7 +338,7 @@ def run_epoch(model, dataset, epoch, base_iter, idx2word, params, is_train=True)
     print('\nAverage loss: %.3f, em: %.3f, f1: %.3f' % (
         total_loss, total_em, total_f1))
 
-    if 'q' in params['mode']:
+    if params['mode'] == 'q':
         model.anneal_exploration()
         pp_em[0] /= pp_cnt
         pp_f1[0] /= pp_cnt

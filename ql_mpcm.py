@@ -43,11 +43,16 @@ class QL_MPCM(MPCM):
             n_context = context / tf.expand_dims(c_norm, -1)
             n_question = question / tf.expand_dims(q_norm, -1)
             tr_question = tf.transpose(n_question, [0, 2, 1])
+            sim_mat_dim = (self.dim_embed_word if self.similarity_q == 'e'
+                    else self.dim_rnn_cell * 2)
             sim_mat = tf.get_variable('sim_mat',
-                    initializer=tf.eye(self.dim_embed_word), dtype=tf.float32)
+                    initializer=tf.eye(sim_mat_dim), dtype=tf.float32)
+            # sim_mat = tf.get_variable('sim_mat',
+            #         initializer=tf.random_uniform(
+            #             [sim_mat_dim, sim_mat_dim], -1, 1), dtype=tf.float32)
             b_sim_mat = tf.scan(lambda a, x: tf.identity(sim_mat), 
-                    context, tf.zeros([self.dim_embed_word, self.dim_embed_word], 
-                        dtype=tf.float32)) 
+                    context, tf.zeros([sim_mat_dim, sim_mat_dim], 
+                    dtype=tf.float32)) 
             tmp_cont_sim = tf.matmul(n_context, b_sim_mat)
             self.similarity = tf.matmul(tmp_cont_sim, tr_question)
             self.c_sim = tf.argmax(tf.transpose(self.similarity, [0, 2, 1]), axis=2)
@@ -86,7 +91,8 @@ class QL_MPCM(MPCM):
                 c_fb = tf.concat(axis=1, values=[c_state[0][0][1], c_state[1][0][1]])
                 c_t = tf.tile(tf.expand_dims(c_fb, axis=1),
                         [1, self.question_maxlen, 1])
-                question = tf.concat(axis=2, values=[question, candidate, c_t])
+                # question = tf.concat(axis=2, values=[question, candidate, c_t])
+                question = tf.concat(axis=2, values=[question, candidate])
            
             # Bidirectional
             fw_cell = lstm_cell(

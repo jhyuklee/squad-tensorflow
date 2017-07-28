@@ -129,7 +129,8 @@ def build_dict(dataset, params):
                         answer_maxlen = len(answer_words)
     
     print('Top 20 frequent words among', len(counter))
-    print([(k, counter[k]) for k in sorted(counter, key=counter.get, reverse=True)[:20]])
+    print([(k, counter[k]) for k in sorted(
+        counter, key=counter.get, reverse=True)[:20]])
     tester = sorted(counter, key=counter.get, reverse=True)[70000]
     print(tester, counter[tester])
 
@@ -148,7 +149,8 @@ def build_dict(dataset, params):
 
     print('Dictionary size', len(dictionary))
     print([(k, dictionary[k]) for k in sorted(dictionary, key=dictionary.get)[:20]])
-    print('Maxlen of C:%d, Q:%d, A:%d' % (context_maxlen, question_maxlen, answer_maxlen))
+    print('Maxlen of C:%d, Q:%d, A:%d' % (
+        context_maxlen, question_maxlen, answer_maxlen))
 
     return dictionary, reverse_dictionary, context_maxlen, question_maxlen
 
@@ -175,9 +177,12 @@ def preprocess(dataset, dictionary, c_maxlen, q_maxlen):
                 question = qa['question']
                 answers = qa['answers']
                 qa_item['q_raw'] = tokenize(question)
-                qa_item['q'], qa_item['q_len'] = word2idx(question, dictionary, q_maxlen)
-                qa_item['a_start'] = len(tokenize(context[:answers[0]['answer_start']]))
-                qa_item['a_end'] = qa_item['a_start'] + len(tokenize(answers[0]['text'])) - 1
+                qa_item['q'], qa_item['q_len'] = word2idx(
+                        question, dictionary, q_maxlen)
+                qa_item['a_start'] = len(tokenize(
+                    context[:answers[0]['answer_start']]))
+                qa_item['a_end'] = qa_item['a_start'] + len(tokenize(
+                    answers[0]['text'])) - 1
                 qa_item['a'] = [a['text'] for a in answers]
                 qa_set.append(qa_item)
                 if d_idx == 0 and p_idx == 0:
@@ -193,3 +198,15 @@ def preprocess(dataset, dictionary, c_maxlen, q_maxlen):
 
     return cqa_set
 
+
+def load_lm(lm_path):
+    with open(lm_path, 'r', encoding='utf-8', errors='ignore') as f:
+        while True:
+            try:
+                line = f.readline()
+                if not line: break
+                word = line.split()[0]
+                embed = [float(l) for l in line.split()[1:]]
+                glove[word] = embed
+            except ValueError as e:
+                print(e)

@@ -94,7 +94,8 @@ class Basic(object):
             fw_cell = lstm_cell(self.dim_rnn_cell, self.rnn_layer, self.rnn_dropout)
             bw_cell = lstm_cell(self.dim_rnn_cell, self.rnn_layer, self.rnn_dropout) 
             inputs_reshape = rnn_reshape(inputs_embed, dim_embed, max_length)
-            outputs = rnn_model(inputs_reshape, length, max_length, fw_cell, self.params)
+            outputs = rnn_model(
+                    inputs_reshape, length, max_length, fw_cell, self.params)
             return outputs
 
     def build_model(self):
