@@ -8,6 +8,9 @@ import operator
 import collections
 import numpy as np
 import nltk
+from pycorenlp import StanfordCoreNLP 
+
+nlp = StanfordCoreNLP('http://localhost:9000')
 nltk.download('punkt')
 
 
@@ -64,6 +67,13 @@ def load_glove(dictionary, params):
     print('Pretrained vectors', np.asarray(pretrained_vectors).shape, 'unk', unk_cnt)
     print('Dictionary Change', len(dictionary), 'to', len(word2idx), len(idx2word))
     return np.asarray(pretrained_vectors).astype(np.float32), word2idx, idx2word 
+
+
+def tokenize_corenlp(words):
+    output = nlp.annotate(words,properties = {'annotators':'tokenize','outputFormat':'json'})
+    result = [w['word'].replace("''",'"').replace("``",'"') for w in output['tokens']]
+    return result    
+
 
 
 def tokenize(words):
