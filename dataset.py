@@ -259,9 +259,6 @@ def preprocess(dataset, dictionary, c_maxlen, q_maxlen, w_maxlen, char_dictionar
                 # print(context)
                 pass
             
-            if p_idx == 1:
-                print(cqa_item['c_char_idx'])
-                print(cqa_item['char_len'])
             qa_set = []
             for qa in paragraph['qas']:
                 cnt += 1

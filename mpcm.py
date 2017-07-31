@@ -242,7 +242,7 @@ class MPCM(Basic):
                 char_emb_matrix = tf.get_variable(
                         "char_emb_matrix",shape = [(self.char_size-1),self.char_emb_dim],
                         dtype = tf.float32, trainable = True)
-                char_emb_pad = tf.constant(tf.zeros([1,self.char_emb_dim]),dtype = tf.float32)
+                char_emb_pad = tf.constant(([[0.0]*self.char_emb_dim]),dtype = tf.float32)
                 char_emb_matrix = tf.concat([char_emb_pad,char_emb_matrix],0)
 
                 char_context_embed = tf.nn.embedding_lookup(char_emb_matrix, self.context_char)
