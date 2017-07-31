@@ -98,36 +98,6 @@ def word2idx(words, dictionary, max_length=None):
 
     return result_idx, original_len
 
-def char2idx(words, char_dictionary, word_maxlen = None, max_length = None):
-    result_idx = []
-    word_idx = []
-    word_length = []
-    for word in words:
-        for char in word:
-            if char not in char_dictionary:
-                word_idx.append(char_dictionary['UNK'])
-            else:
-                word_idx.append(char_dictionary[char])
-        
-        word_length.append(len(word_idx))
-        if word_maxlen is not None:
-            while len(word_idx) < word_maxlen:
-                word_idx.append(char_dictionary['PAD'])
-            if len(word_idx) > word_maxlen:
-                word_idx = word_idx[:word_maxlen]
-        result_idx.append(word_idx)
-        word_idx = []
-    
-    if max_length is not None:
-        while len(result_idx) < max_length:
-            result_idx.append([char_dictionary['PAD']]*word_maxlen)
-            word_length.append(0)
-        if len(result_idx) > max_length:
-            result_idx = result_idx[:max_length]
-            word_length = word_length[:max_length]
-    
-    return result_idx, word_length 
-
 
 def word2cnt(words, counter):
     for word in words:
@@ -157,10 +127,6 @@ def build_dict(dataset, params):
     reverse_char_dict = {}
     word_maxlen = 0
     char_counter = {}
-    char_dict['UNK'] = 0
-    char_dict['PAD'] =1
-    reverse_char_dict[0] = 'UNK'
-    reverse_char_dict[1] = 'PAD'
     
     for d_idx, document in enumerate(dataset):
         for p_idx, paragraph in enumerate(document['paragraphs']):
@@ -208,6 +174,7 @@ def build_dict(dataset, params):
     
     print('Top 20 frequent characters among', len(char_counter))
     print([(k,char_counter[k]) for k in sorted(char_counter, key=char_counter.get, reverse=True)[:20]])
+    print("I,\n",char_counter['I'])
 
     digit = 0
     non_alnum = 0
@@ -228,10 +195,8 @@ def build_dict(dataset, params):
 
     print('Dictionary size', len(dictionary))
     print([(k, dictionary[k]) for k in sorted(dictionary, key=dictionary.get)[:20]])
-    
     print('Charcter dict size',len(char_dict))
     print([(k,char_dict[k]) for k in sorted(char_dict, key = char_dict.get)[:20]])
-    
     print('Maxlen of C:%d, Q:%d, A:%d' % (context_maxlen, question_maxlen, answer_maxlen))
     print('Word maxlen : %d' % word_maxlen)
 
@@ -239,7 +204,7 @@ def build_dict(dataset, params):
     return dictionary, reverse_dictionary, context_maxlen, question_maxlen, word_maxlen, char_dict, reverse_char_dict
 
 
-def preprocess(dataset, dictionary, c_maxlen, q_maxlen, w_maxlen, char_dictionary):
+def preprocess(dataset, dictionary, c_maxlen, q_maxlen):
     cqa_set = []
     cnt = 0
 
@@ -250,15 +215,15 @@ def preprocess(dataset, dictionary, c_maxlen, q_maxlen, w_maxlen, char_dictionar
             cqa_item['c_raw'] = tokenize(context)
             cqa_item['c_real'] = context
 
-            cqa_item['c_char'] = [list(word) for word in cqa_item['c_raw']]
+            cqa_char['c_char'] = [list(word) for word in cqa_item['c_raw']]
+            print("index: %d" %p_idx)
+            print(cqa_char['c_char'])
 	    
             cqa_item['c'], cqa_item['c_len'] = word2idx(context, dictionary, c_maxlen)
-            cqa_item['c_char_idx'], cqa_item['char_len'] = char2idx(cqa_item['c_char'], char_dictionary, w_maxlen, c_maxlen)
             if len(cqa_item['c_raw']) > c_maxlen: continue
             if d_idx == 0 and p_idx == 0:
                 # print(context)
                 pass
-            
             qa_set = []
             for qa in paragraph['qas']:
                 cnt += 1
@@ -266,10 +231,6 @@ def preprocess(dataset, dictionary, c_maxlen, q_maxlen, w_maxlen, char_dictionar
                 question = qa['question']
                 answers = qa['answers']
                 qa_item['q_raw'] = tokenize(question)
-                
-                qa_item['q_char'] = [list(word) for word in qa_item['q_raw']]
-                qa_item['q_char_idx'], qa_item['q_char_len'] = char2idx(qa_item['q_char'], char_dictionary, w_maxlen, q_maxlen)
-
                 qa_item['q'], qa_item['q_len'] = word2idx(question, dictionary, q_maxlen)
                 qa_item['a_start'] = len(tokenize(context[:answers[0]['answer_start']]))
                 qa_item['a_end'] = qa_item['a_start'] + len(tokenize(answers[0]['text'])) - 1

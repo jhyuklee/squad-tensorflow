@@ -70,6 +70,13 @@ flags.DEFINE_string('glove_path', \
             + str(tf.app.flags.FLAGS.dim_embed_word) +'d.txt'), 'embed path')
 flags.DEFINE_string('validation_path', './result/validation.txt', 'Validation path')
 
+# Character embedding
+flags.DEFINE_string('char_emb_dim', 8,'Character embedding dimension')
+flags.DEFINE_string('filter_width', 5, 'CNN fiter width')
+flags.DEFINE_string('cnn_layer',1, 'Number of CNN layer')
+flags.DEFINE_string('char_out',100,'Character output dimension(number of filter')#TODO 
+flags.DEFINE_string('share_conv',True,'Share cnn for context and question')
+
 FLAGS = flags.FLAGS
 
 
@@ -164,17 +171,19 @@ def main(_):
         - title
     """
     # Preprocess dataset
-    word2idx, idx2word, c_maxlen, q_maxlen = build_dict(train_dataset, saved_params)
+    word2idx, idx2word, c_maxlen, q_maxlen, word_maxlen, char2idx, idx2char = build_dict(train_dataset, saved_params)
     pretrained_glove, word2idx, idx2word = load_glove(word2idx, saved_params)
     if saved_params['context_maxlen'] > 0: 
         c_maxlen = saved_params['context_maxlen']
 
-    train_dataset = preprocess(train_dataset, word2idx, c_maxlen, q_maxlen)
-    dev_dataset = preprocess(dev_dataset, word2idx, c_maxlen, q_maxlen)
+    train_dataset = preprocess(train_dataset, word2idx, c_maxlen, q_maxlen,word_maxlen, char2idx)
+    dev_dataset = preprocess(dev_dataset, word2idx, c_maxlen, q_maxlen, word_maxlen, char2idx)
     saved_params['context_maxlen'] = c_maxlen
     saved_params['question_maxlen'] = q_maxlen
     saved_params['voca_size'] = len(word2idx)
     saved_params['dim_output'] = c_maxlen
+    saved_params['word_maxlen'] = word_maxlen
+    saved_params['char_size'] = len(char2idx)
 
     for model_idx in range(saved_params['validation_cnt']):
         # Copy params, ready for validation

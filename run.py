@@ -97,6 +97,11 @@ def run_epoch(model, dataset, epoch, idx2word, params, is_train=True):
         context = dataset_item['c']
         context_raw = dataset_item['c_raw']
         context_len = dataset_item['c_len']
+        c_char_raw = dataset_item['c_char']
+        c_char = dataset_item['c_char_idx']
+        c_char_len = dataset_item['char_len']
+
+
         for qa in dataset_item['qa']:
             question = qa['q']
             question_len = qa['q_len']
@@ -104,8 +109,13 @@ def run_epoch(model, dataset, epoch, idx2word, params, is_train=True):
             answer = qa['a']
             answer_start = qa['a_start']
             answer_end = qa['a_end']
+            
+            q_char_raw = qa['q_char']
+            q_char = qa['q_char_idx']
+            q_char_len = qa['q_char_len']
+
             mini_batch.append([context, context_len, 
-                question, question_len, answer_start, answer_end])
+                question, question_len, answer_start, answer_end, c_char, c_char_len, q_char, q_char_len])
             ground_truths.append(answer)
             context_raws.append(context_raw)
             question_raws.append(question_raw)
@@ -118,6 +128,10 @@ def run_epoch(model, dataset, epoch, idx2word, params, is_train=True):
                 batch_question_len = np.array([b[3] for b in mini_batch])
                 batch_answer_start = np.array([b[4] for b in mini_batch])
                 batch_answer_end = np.array([b[5] for b in mini_batch])
+                batch_context_char = np.array([b[6] for b in mini_batch])
+                batch_context_char_len = np.array([b[7] for b in mini_batch])
+                batch_question_char = np.array([b[8] for b in mini_batch])
+                batch_question_char_len = np.array([b[9] for b in mini_batch])
 
                 feed_dict = {model.context: batch_context,
                         model.context_len: batch_context_len,
@@ -128,7 +142,9 @@ def run_epoch(model, dataset, epoch, idx2word, params, is_train=True):
                         model.rnn_dropout: params['rnn_dropout'],
                         model.hidden_dropout: params['hidden_dropout'],
                         model.embed_dropout: params['embed_dropout'],
-                        model.learning_rate: params['learning_rate']}
+                        model.learning_rate: params['learning_rate'],
+                        model.context_char: batch_context_char,
+                        model.question_char : batch_question_char}
                 
                 # Use 1.0 dropout for test time
                 if not is_train:
