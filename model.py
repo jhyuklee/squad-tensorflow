@@ -55,6 +55,7 @@ class Basic(object):
         #character embedding
         self.context_char = tf.placeholder(tf.int32, [None, self.context_maxlen, self.word_maxlen])
         self.question_char = tf.placeholder(tf.int32, [None, self.question_maxlen, self.word_maxlen])
+        self.cnn_keep_prob = tf.placeholder(tf.float32)
         
         # model settings
         self.global_step = tf.Variable(0, name="step", trainable=False)

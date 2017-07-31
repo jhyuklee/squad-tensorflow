@@ -207,8 +207,7 @@ class MPCM(Basic):
             conv_filter = tf.get_variable("filter", shape = [1,filter_width, num_channels, output_dim], dtype = tf.float32)
             bias = tf.get_variable("bias", shape = [output_dim], dtype = tf.float32)
             strides = [1,1,1,1]
-            if keep_prob < 1.0:
-                inputs = dropout(inputs, keep_prob, is_train)
+            inputs = dropout(inputs, keep_prob)
             conv = tf.nn.conv2d(inputs, conv_filter, strides, padding) + bias
             conv_output = tf.reduce_max(tf.nn.relu(conv),2)
             return conv_output
@@ -253,21 +252,21 @@ class MPCM(Basic):
                 with tf.variable_scope('conv'):
                     char_conv_context = self.char_conv(
                             char_context_embed,self.char_emb_dim,self.char_out,
-                            self.filter_width,'VALID',scope = 'char_context')
+                            self.filter_width,'VALID',scope = 'char_context', keep_prob = self.cnn_keep_prob)
                     if self.share_conv:
                         tf.get_variable_scope().reuse_variables()
                         char_conv_question = self.char_conv(
                                 char_question_embed,self.char_emb_dim, self.char_out,
-                                self.filter_width,'VALID', scope = 'char_context') 
+                                self.filter_width,'VALID', scope = 'char_context', keep_prob = self.cnn_keep_prob) 
                     else:
                         char_conv_question = self.char_conv(
                                 char_question_embed,self.char_emb_dem, self.char_out,
-                                self.filter_width,'VALID', scope = 'char_question')
+                                self.filter_width,'VALID', scope = 'char_question', keep_prob = self.cnn_keep_prob)
 
                     print(char_conv_context)
                     print(char_conv_question)
-            context_embed_input = tf.concat([context_embed, char_conv_context],2)
-            question_embed_input = tf.concat([question_embed, char_conv_question],2)
+            context_embed_input = dropout(tf.concat([context_embed, char_conv_context],2), self.embed_dropout)
+            question_embed_input = dropout(tf.concat([question_embed, char_conv_question],2),self.embed_dropout)
             print(context_embed_input)
             print(question_embed_input)
                          

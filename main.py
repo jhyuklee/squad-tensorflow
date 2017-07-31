@@ -76,6 +76,8 @@ flags.DEFINE_string('filter_width', 5, 'CNN fiter width')
 flags.DEFINE_string('cnn_layer',1, 'Number of CNN layer')
 flags.DEFINE_string('char_out',100,'Character output dimension(number of filter')#TODO 
 flags.DEFINE_string('share_conv',True,'Share cnn for context and question')
+flags.DEFINE_string('cnn_keep_prob',0.8,'Dropout for CNN layer')
+
 
 FLAGS = flags.FLAGS
 

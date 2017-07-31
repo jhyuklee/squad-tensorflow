@@ -144,13 +144,15 @@ def run_epoch(model, dataset, epoch, idx2word, params, is_train=True):
                         model.embed_dropout: params['embed_dropout'],
                         model.learning_rate: params['learning_rate'],
                         model.context_char: batch_context_char,
-                        model.question_char : batch_question_char}
+                        model.question_char : batch_question_char,
+                        model.cnn_keep_prob : params['cnn_keep_prob']}
                 
                 # Use 1.0 dropout for test time
                 if not is_train:
                     feed_dict[model.rnn_dropout] = 1.0
                     feed_dict[model.hidden_dropout] = 1.0
                     feed_dict[model.embed_dropout] = 1.0
+                    feed_dict[model.cnn_keep_prob] = 1.0
 
                 # do not train when 'pp_only'
                 if not (params['mode'] == 'q' and params['train_pp_only']) and is_train:
