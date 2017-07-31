@@ -219,26 +219,32 @@ class MPCM(Basic):
         print("### Building MPCM model ###")
 
         with tf.device('/gpu:0'):
-            context_embed = dropout(embedding_lookup(
+            context_embed = embedding_lookup(
                     inputs=self.context,
                     voca_size=self.voca_size,
                     embedding_dim=self.dim_embed_word, 
                     initializer=self.initializer, 
                     trainable=self.embed_trainable,
-                    reuse=True, scope='Word'), self.embed_dropout)
+                    reuse=True, scope='Word')
             
-            question_embed = dropout(embedding_lookup(
+            question_embed = embedding_lookup(
                     inputs=self.question,
                     voca_size=self.voca_size,
                     embedding_dim=self.dim_embed_word,
                     initializer=self.initializer,
                     trainable=self.embed_trainable,
-                    reuse=True, scope='Word'), self.embed_dropout)
+                    reuse=True, scope='Word')
             print(context_embed)
             print(question_embed)
 
             with tf.variable_scope("char"):
-                char_emb_matrix = tf.get_variable("char_emb_matrix",shape = [self.char_size,self.char_emb_dim], dtype = tf.float32)
+                
+                char_emb_matrix = tf.get_variable(
+                        "char_emb_matrix",shape = [(self.char_size-1),self.char_emb_dim],
+                        dtype = tf.float32, trainable = True)
+                char_emb_pad = tf.constant(tf.zeros([1,self.char_emb_dim]),dtype = tf.float32)
+                char_emb_matrix = tf.concat([char_emb_pad,char_emb_matrix],0)
+
                 char_context_embed = tf.nn.embedding_lookup(char_emb_matrix, self.context_char)
                 char_question_embed = tf.nn.embedding_lookup(char_emb_matrix, self.question_char)
                 print(char_context_embed)
