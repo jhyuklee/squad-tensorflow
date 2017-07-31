@@ -49,7 +49,7 @@ class QL_MPCM(MPCM):
                     initializer=tf.eye(sim_mat_dim), dtype=tf.float32)
             # sim_mat = tf.get_variable('sim_mat',
             #         initializer=tf.random_uniform(
-            #             [sim_mat_dim, sim_mat_dim], -1, 1), dtype=tf.float32)
+            #              [sim_mat_dim, sim_mat_dim], -1, 1), dtype=tf.float32)
             b_sim_mat = tf.scan(lambda a, x: tf.identity(sim_mat), 
                     context, tf.zeros([sim_mat_dim, sim_mat_dim], 
                     dtype=tf.float32)) 
@@ -89,9 +89,9 @@ class QL_MPCM(MPCM):
             # Concat question and context [q, c_sim, c_fb]
             if candidate is not None:
                 c_fb = tf.concat(axis=1, values=[c_state[0][0][1], c_state[1][0][1]])
-                c_t = tf.tile(tf.expand_dims(c_fb, axis=1),
+                c_fb = tf.tile(tf.expand_dims(c_fb, axis=1),
                         [1, self.question_maxlen, 1])
-                # question = tf.concat(axis=2, values=[question, candidate, c_t])
+                # question = tf.concat(axis=2, values=[question, candidate, c_fb])
                 question = tf.concat(axis=2, values=[question, candidate])
            
             # Bidirectional

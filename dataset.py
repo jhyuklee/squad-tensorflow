@@ -200,13 +200,4 @@ def preprocess(dataset, dictionary, c_maxlen, q_maxlen):
 
 
 def load_lm(lm_path):
-    with open(lm_path, 'r', encoding='utf-8', errors='ignore') as f:
-        while True:
-            try:
-                line = f.readline()
-                if not line: break
-                word = line.split()[0]
-                embed = [float(l) for l in line.split()[1:]]
-                glove[word] = embed
-            except ValueError as e:
-                print(e)
+    pass
