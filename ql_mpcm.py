@@ -133,8 +133,8 @@ class QL_MPCM(MPCM):
 
         # Regularizer not used
         reg_loss = tf.reduce_sum(
-                [tf.reduce_sum(tf.square(x)) for x in self.policy_params]) * 0.001
-        total_loss = tf.reduce_mean(pg_loss)
+                [tf.reduce_sum(tf.square(x)) for x in self.policy_params]) * 0.01
+        total_loss = tf.reduce_mean(pg_loss) + reg_loss
         
         self.policy_gradients = self.optimizer.compute_gradients(total_loss,
                 var_list=self.policy_params)

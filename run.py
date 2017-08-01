@@ -162,12 +162,26 @@ def run_paraphrase(question, question_len, context, context_len,
         for w in c_sim[max_idx][:question_len[max_idx]]], params['debug'])
     dprint('changed %s' % [idx2word[w] 
         for w in paraphrased_q[max_idx][:paraphrased_qlen[max_idx]]], params['debug'])
-   
+    dprint('Model number %s'% model.ymdhms, params['debug']) 
     # Use REINFORE with original em, f1 as baseline (per example)
     rewards = np.sum([em_s, f1_s], axis=0) / 2
     baselines = np.sum([baseline_em, baseline_f1], axis=0) / 2
-    advantages = np.clip(
-            rewards / (baselines + 1e-5) - 1, -1, params['rb_clip']) + rewards
+    # advantages = np.clip(
+    #         rewards / (baselines + 1e-5) - 1, -1, params['rb_clip']) + rewards
+    advantages = []
+    for r, b in zip(rewards, baselines):
+        if r > b:
+            advantages.append(1)
+        elif r == b:
+            advantages.append(0)
+        elif r < b:
+            advantages.append(-1)
+        else:
+            assert False, 'Invalid r, b'
+    """
+    advantages = rewards - baselines
+    """
+
     feed_dict[model.taken_actions[pp_idx]] = taken_action
     feed_dict[model.advantages[pp_idx]] = advantages
     _, pp_loss, summary = sess.run([
