@@ -239,10 +239,10 @@ class MPCM(Basic):
             with tf.variable_scope("char"):
                 
                 char_emb_matrix = tf.get_variable(
-                        "char_emb_matrix",shape = [(self.char_size-1),self.char_emb_dim],
+                        "char_emb_matrix",shape = [(self.char_size),self.char_emb_dim],
                         dtype = tf.float32, trainable = True)
-                char_emb_pad = tf.constant(([[0.0]*self.char_emb_dim]),dtype = tf.float32)
-                char_emb_matrix = tf.concat([char_emb_pad,char_emb_matrix],0)
+               # char_emb_pad = tf.constant(([[0.0]*self.char_emb_dim]),dtype = tf.float32)
+               # char_emb_matrix = tf.concat([char_emb_pad,char_emb_matrix],0)
 
                 char_context_embed = tf.nn.embedding_lookup(char_emb_matrix, self.context_char)
                 char_question_embed = tf.nn.embedding_lookup(char_emb_matrix, self.question_char)

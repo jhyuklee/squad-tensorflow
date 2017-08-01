@@ -154,7 +154,7 @@ def run_epoch(model, dataset, epoch, idx2word, params, is_train=True):
                     feed_dict[model.embed_dropout] = 1.0
                     feed_dict[model.cnn_keep_prob] = 1.0
 
-                # do not train when 'pp_only'
+                # do not train whn 'pp_only'
                 if not (params['mode'] == 'q' and params['train_pp_only']) and is_train:
                     sess.run(model.optimize, feed_dict=feed_dict)
                 
