@@ -1,10 +1,11 @@
 import sys
 import numpy as np
 
+from tensorflow.core.framework import summary_pb2
 from evaluate import *
 
 def progress(_progress):
-    bar_length = 20  # Modify this to change the length of the progress bar
+    bar_length = 10  # Modify this to change the length of the progress bar
     status = ""
     if isinstance(_progress, int):
         _progress = float(_progress)
@@ -18,7 +19,8 @@ def progress(_progress):
         _progress = 1
         status = "Finished."
     block = int(round(bar_length * _progress))
-    text = "\rPercent: [%s] %.2f%% %s" % ("#" * block + " " * (bar_length-block), _progress * 100, status)
+    text = "\r[%s] %.2f%% %s" % (
+            "#" * block + " " * (bar_length-block), _progress * 100, status)
 
     return text
 
@@ -36,10 +38,11 @@ def em_f1_score(predictions, ground_truths, params):
                 exact_match_score, prediction, ground_truth)
         single_f1 = metric_max_over_ground_truths(
                 f1_score, prediction, ground_truth)
-
         em.append(single_em)
         f1.append(single_f1)
 
+    em = np.array(em).astype(int)
+    f1 = np.array(f1)
     return em, f1
 
 
@@ -54,4 +57,9 @@ def pred_from_logits(start_logits, end_logits, batch_context_len, c_raws, params
         predictions.append(' '.join([w for w in c[s_idx: e_idx+1]]))
 
     return predictions
+
+def write_scalar_summary(name, value, iter, writer):
+    value_to_write = summary_pb2.Summary.Value(tag=name, simple_value=value)
+    summary = summary_pb2.Summary(value=[value_to_write])
+    writer.add_summary(summary, iter)
 

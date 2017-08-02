@@ -6,6 +6,7 @@ import argparse
 import datetime
 import random
 import copy
+import os
 
 from model import Basic
 from mpcm import MPCM
@@ -13,7 +14,7 @@ from ql_mpcm import QL_MPCM
 from bidaf import BiDAF
 from my_bidaf import My_BiDAF
 from time import gmtime, strftime
-from dataset import read_data, build_dict, load_glove, preprocess
+from dataset import read_data, build_dict, load_glove, preprocess, load_lm
 from run import run_epoch
 
 flags = tf.app.flags
@@ -23,12 +24,13 @@ flags.DEFINE_integer("dim_embed_word", 300, "Dimension of word embedding (300)")
 flags.DEFINE_integer("dim_rnn_cell", 100, "Dimension of RNN cell (100)")
 flags.DEFINE_integer("dim_hidden", 100, "Dimension of hidden layer")
 flags.DEFINE_integer("rnn_layer", 1, "Layer number of RNN ")
-flags.DEFINE_integer("context_maxlen", 0, "Predefined context max length (0 for max)")
+flags.DEFINE_integer("context_maxlen", 0, "Predefined context length (0 for max)")
 flags.DEFINE_float("rnn_dropout", 0.5, "Dropout of RNN cell")
 flags.DEFINE_float("hidden_dropout", 0.5, "Dropout rate of hidden layer")
 flags.DEFINE_float("embed_dropout", 0.8, "Dropout rate of embedding layer")
-flags.DEFINE_float("learning_rate", 0.00162, "Initial learning rate of the optimzier")
+flags.DEFINE_float("learning_rate", 1e-5, "Init learning rate of the optimzier")
 flags.DEFINE_float("max_grad_norm", 5.0, "Maximum gradient to clip")
+flags.DEFINE_string("optimizer", "a", "[s]sgd [m]momentum [a]adam")
 
 # Run options
 flags.DEFINE_integer('train_epoch', 100, 'Training epoch')
@@ -40,17 +42,31 @@ flags.DEFINE_boolean("sample_params", False, "True to sample parameters")
 flags.DEFINE_boolean("early_stop", False, "True to make early stop")
 flags.DEFINE_boolean("load", False, "True to load model")
 flags.DEFINE_boolean("train", True, "True to train model")
+flags.DEFINE_boolean("summarize", False, "True to have summarization")
 flags.DEFINE_boolean("embed_trainable", False, "True to optimize embedded words")
 flags.DEFINE_string("load_name", "m100_300d6B", "load model name")
 flags.DEFINE_string("model_name", "none", "Replaced by load_name or auto-named")
 flags.DEFINE_string("mode", "q", "b: basic, m: mpcm, q: ql_mpcm")
+flags.DEFINE_string("ymdhms", "none", "Model index (ymdhMs)")
 
 # MPCM settings
 flags.DEFINE_integer("dim_perspective", 20, "Maximum number of perspective (20)")
 
 # Paraphrase settings
-flags.DEFINE_integer("num_paraphrase", 1, "Maximum number of question paraphrasing")
-flags.DEFINE_integer("num_action", 2, "Number of action space.")
+flags.DEFINE_integer("num_paraphrase", 1, "Maximum iter of question paraphrasing")
+flags.DEFINE_integer("dim_action", 5, "Dimension of action space")
+flags.DEFINE_integer("max_action", 0, "Maximum possible sampled actions")
+flags.DEFINE_integer("rb_clip", 2, "Maximum R/B clip")
+flags.DEFINE_integer("pp_dim_rnn_cell", 100, "Dimension of RNN cell (100)")
+flags.DEFINE_integer("pp_rnn_layer", 1, "Layer number of RNN")
+flags.DEFINE_string("policy_q", "e", "question [e] embed [h] hidden")
+flags.DEFINE_string("policy_c", "e", "context [e] embed [h] hidden")
+flags.DEFINE_string("similarity_q", "e", "question [e] embed [h] hidden")
+flags.DEFINE_string("similarity_c", "e", "context [e] embed [h] hidden")
+flags.DEFINE_float("reg_param", 0.0, "Regularization parameter")
+flags.DEFINE_float("init_exp", 0.0, "Initial exploration prob")
+flags.DEFINE_float("final_exp", 0.0, "Final exploration prob")
+flags.DEFINE_boolean("anneal_exp", False, "True to anneal exploration")
 flags.DEFINE_boolean("train_pp_only", True, "True to train paraphrase only")
 
 # Bidaf settings
@@ -58,7 +74,7 @@ flags.DEFINE_integer("highway_num_layers", 2, "highway_num_layers [2]")
 flags.DEFINE_integer("hidden_size", 100, "Hidden size [100]")
 flags.DEFINE_float("input_keep_prob", 0.8, "Input keep prob of LSTM weights [0.8]")
 flags.DEFINE_float("wd", 0.0, "L2 weight decay for regularization [0.0]")
-flags.DEFINE_boolean("share_lstm_weights", True, "Share preprocessed LSTM weights [True]")
+flags.DEFINE_boolean("share_lstm_weights", True, "Share LSTM weights [True]")
 flags.DEFINE_boolean("use_char_emb", True, "use char emb? [True]")
 flags.DEFINE_boolean("use_word_emb", True, "use word emb? [True]")
 flags.DEFINE_boolean("highway", True, "Use highway? [True]")
@@ -67,10 +83,12 @@ flags.DEFINE_string('logit_func', 'tri_linear', 'logit func [tri_linear]')
 flags.DEFINE_string('answer_func', 'linear', 'answer logit func [linear]')
 
 # Path settings
-flags.DEFINE_string('checkpoint_dir', './result/ckpt/', 'Checkpoint directory')
+flags.DEFINE_string('checkpoint_dir', './results/ckpt/', 'Checkpoint directory')
+flags.DEFINE_string('summary_dir', './results/summary/', 'summary writer')
 flags.DEFINE_string('train_path', './data/train-v1.1.json', 'Training dataset path')
 flags.DEFINE_string('dev_path', './data/dev-v1.1.json',  'Development dataset path')
-flags.DEFINE_string('pred_path', './result/dev-v1.1-pred.json', 'Pred output path')
+flags.DEFINE_string('pred_path', './results/dev-v1.1-pred.json', 'Pred output path')
+flags.DEFINE_string('lm_path', './data/langmodel.pkl', 'Pretrained LM path')
 flags.DEFINE_string("glove_size", "6", "use 6B or 840B for glove")
 flags.DEFINE_string('glove_path', \
         ('~/common/glove/glove.'+ tf.app.flags.FLAGS.glove_size + 'B.'
@@ -86,12 +104,18 @@ def run(model, params, train_dataset, dev_dataset, idx2word):
     test_epoch = params['test_epoch']
     init_lr = params['learning_rate']
     early_stop = params['early_stop']
+    train_iter = valid_iter = 0
+    if params['mode'] == 'q':
+        LM = load_lm(params['lm_path']) 
+    else:
+        LM = None
 
     for epoch_idx in range(train_epoch):
         if params['train']:
             start_time = datetime.datetime.now()
             print("\n[Epoch %d]" % (epoch_idx + 1))
-            run_epoch(model, train_dataset, epoch_idx + 1, idx2word, params, is_train=True)
+            _, _, _, train_iter = run_epoch(model, train_dataset, epoch_idx + 1, 
+                    train_iter, idx2word, params, is_train=True, lang_model=LM)
             elapsed_time = datetime.datetime.now() - start_time
             print('Epoch %d Done in %s' % (epoch_idx + 1, elapsed_time))
         
@@ -100,7 +124,7 @@ def run(model, params, train_dataset, dev_dataset, idx2word):
                     params, is_train=False)
             if em < 0.1 and epoch_idx > 5: break
             if max_f1 > f1 - 1e-2 and epoch_idx > 0 and early_stop:
-                print('Max f1: %.3f, em: %.3f, epoch: %d' % (max_f1, max_em, max_ep))
+                print('Max em: %.3f, f1: %.3f, epoch: %d' % (max_em, max_f1, max_ep))
                 es_cnt += 1
                 if epoch_idx > 15:
                     if es_cnt > 3 :
@@ -127,7 +151,7 @@ def run(model, params, train_dataset, dev_dataset, idx2word):
     
     model.reset_graph()
     params['learning_rate'] = init_lr
-    return max_f1, max_em, max_ep
+    return max_em, max_f1, max_ep
 
 
 def sample_parameters(params):
@@ -138,7 +162,7 @@ def sample_parameters(params):
     return params
 
 
-def write_result(params, f1, em, ep):
+def write_result(params, em, f1, ep):
     f = open(params['validation_path'], 'a')
     f.write('Model %s\n' % params['model_name'])
     f.write('learning_rate / dim_rnn_cell / batch_size / ' + 
@@ -147,8 +171,8 @@ def write_result(params, f1, em, ep):
         params['dim_rnn_cell'], params['batch_size'],
         params['dim_perspective'],
         params['dim_embed_word'], params['context_maxlen']))
-    f.write('F1 / EM / EP\n')
-    f.write('[%.3f / %.3f / %d]\n\n' % (f1, em, ep))
+    f.write('EM / F1 / EP\n')
+    f.write('[%.3f / %.3f / %d]\n\n' % (em, f1, ep))
     f.close()
 
 
@@ -156,6 +180,12 @@ def main(_):
     # Parse arguments and flags
     expected_version = '1.1'
     saved_params = FLAGS.__flags
+
+    # Make directories
+    if not os.path.exists(saved_params['checkpoint_dir']):
+        os.makedirs(saved_params['checkpoint_dir'])
+    if not os.path.exists(saved_params['summary_dir']):
+        os.makedirs(saved_params['summary_dir'])
 
     # Load dataset once
     train_path = saved_params['train_path']
@@ -175,7 +205,8 @@ def main(_):
         - title
     """
     # Preprocess dataset
-    word2idx, idx2word, c_maxlen, q_maxlen = build_dict(train_dataset, saved_params)
+    whole_dataset = np.append(train_dataset, dev_dataset, axis=0)
+    word2idx, idx2word, c_maxlen, q_maxlen = build_dict(whole_dataset, saved_params)
     pretrained_glove, word2idx, idx2word = load_glove(word2idx, saved_params)
     if saved_params['context_maxlen'] > 0: 
         c_maxlen = saved_params['context_maxlen']
@@ -195,12 +226,13 @@ def main(_):
             params = copy.deepcopy(saved_params)
 
         # Model name settings
+        ymdhms = datetime.datetime.now().strftime('%Y%m%d%H%M%S') 
+        params['ymdhms'] = ymdhms
         if params['load']:
             params['model_name'] = params['load_name']
         else:
-            ymdhm = datetime.datetime.now().strftime('%Y%m%d%H%M') 
             params['model_name'] = '%s%d_%s_%d' % (params['mode'],
-                    params['context_maxlen'], ymdhm, model_idx)
+                    params['context_maxlen'], params['ymdhms'], model_idx)
         
         print('\nModel_%d paramter set' % (model_idx))
         pprint.PrettyPrinter().pprint(params)
@@ -221,8 +253,8 @@ def main(_):
         if params['load']:
             my_model.load(params['checkpoint_dir'])
        
-        f1, em, max_ep = run(my_model, params, train_dataset, dev_dataset, idx2word)
-        write_result(params, f1, em, max_ep)
+        em, f1, max_ep = run(my_model, params, train_dataset, dev_dataset, idx2word)
+        write_result(params, em, f1, max_ep)
 
         if not saved_params['sample_params']:
             break

@@ -1,7 +1,7 @@
 import tensorflow as tf
 import os
 import datetime
-import sys
+
 from ops import *
 
 
@@ -18,19 +18,21 @@ class Basic(object):
         self.session = tf.Session(config=config)
         self.params = params
         self.model_name = params['model_name']
+        self.ymdhms = params['ymdhms']
 
         # rnn parameters
         self.max_grad_norm = params['max_grad_norm']
         self.context_maxlen = params['context_maxlen']
         self.question_maxlen = params['question_maxlen']
         self.rnn_layer = params['rnn_layer']
-        self.voca_size = params['voca_size'] 
+        self.voca_size = params['voca_size']
         self.dim_embed_word = params['dim_embed_word']
         self.dim_hidden = params['dim_hidden']
         self.dim_rnn_cell = params['dim_rnn_cell']
         self.dim_output = params['dim_output']
         self.embed_trainable = params['embed_trainable']
         self.checkpoint_dir = params['checkpoint_dir']
+        self.summary_dir = params['summary_dir']
         self.initializer, self.dictionary = initializer
 
         # input data placeholders
@@ -46,8 +48,20 @@ class Basic(object):
         self.learning_rate = tf.placeholder(tf.float32)
 
         # model settings
+        self.context_mask = tf.sequence_mask(self.context_len, 
+                self.context_maxlen, dtype=tf.float32)
+        self.question_mask = tf.sequence_mask(self.question_len, 
+                self.question_maxlen, dtype=tf.float32)
         self.global_step = tf.Variable(0, name="step", trainable=False)
-        self.optimizer = tf.train.AdamOptimizer(self.learning_rate)
+        if params['optimizer'] == 's': 
+            self.optimizer = tf.train.GradientDescentOptimizer(self.learning_rate)
+        elif params['optimizer'] == 'm':
+            self.optimizer = tf.train.MomentumOptimizer(self.learning_rate, 0.9)
+        elif params['optimizer'] == 'a':
+            self.optimizer = tf.train.AdamOptimizer(self.learning_rate)
+        else:
+            assert False, 'Wrong optimizer %s' % params['optimizer']
+        self.no_op = tf.no_op()
         self.initialize_embedding(self.initializer)
 
         # build model
@@ -80,7 +94,8 @@ class Basic(object):
             fw_cell = lstm_cell(self.dim_rnn_cell, self.rnn_layer, self.rnn_dropout)
             bw_cell = lstm_cell(self.dim_rnn_cell, self.rnn_layer, self.rnn_dropout) 
             inputs_reshape = rnn_reshape(inputs_embed, dim_embed, max_length)
-            outputs = rnn_model(inputs_reshape, length, max_length, fw_cell, self.params)
+            outputs = rnn_model(
+                    inputs_reshape, length, max_length, fw_cell, self.params)
             return outputs
 
     def build_model(self):
@@ -112,7 +127,7 @@ class Basic(object):
         print('hidden', hidden1)
 
         start_logits = linear(inputs=hidden1,
-            output_dim=self.dim_output, 
+            output_dim=self.dim_output,
             scope='Output_s')
 
         end_logits = linear(inputs=hidden1,
@@ -146,9 +161,15 @@ class Basic(object):
     def initialize_embedding(self, word_embed):
         with tf.variable_scope("Word"):
             word_embeddings = tf.get_variable("embed",
-                                              initializer=tf.constant(word_embed),
-                                              trainable=self.embed_trainable,
-                                              dtype=tf.float32)
+                    initializer=tf.constant(word_embed),
+                    trainable=self.embed_trainable,
+                    dtype=tf.float32)
+
+    def apply_mask(self, target, mask):
+        if len(target.get_shape()) > len(mask.get_shape()):
+            while len(mask.get_shape()) != len(target.get_shape()):
+                mask = tf.expand_dims(mask, -1)
+        return tf.multiply(target, mask)
 
     def save_settings(self):
         print('trainable variables', [var.name for var in tf.trainable_variables()])
@@ -165,40 +186,32 @@ class Basic(object):
         
         if self.params['mode'] == 'q':
             model_vars = [v for v in tf.trainable_variables()
-                    if 'Paraphrase_Layer' not in v.name]
+                    if ('Paraphrase_Layer' not in v.name) and
+                    ('Similarity_Layer' not in v.name)]
         else:
             model_vars = [v for v in tf.trainable_variables()]
         self.loader = tf.train.Saver(model_vars)
         model_vars = [v for v in tf.trainable_variables()]
         self.saver = tf.train.Saver(model_vars)
         self.merged_summary = tf.summary.merge_all()
-        # self.graph_writer = tf.summary.FileWriter(self.checkpoint_dir,self.session.graph)
+        # could add self.session.graph
+        if self.params['summarize']:
+            self.train_writer = tf.summary.FileWriter(
+                    self.summary_dir + self.ymdhms + '/train') 
+            self.valid_writer = tf.summary.FileWriter(
+                    self.summary_dir + self.ymdhms + '/valid') 
 
     @staticmethod
     def reset_graph():
         tf.reset_default_graph()
 
     def save(self, checkpoint_dir):
-        file_name = "%s.model" % self.model_name
+        file_name = "%s" % self.model_name
         self.saver.save(self.session, os.path.join(checkpoint_dir, file_name))
         print("Model saved", file_name)
 
     def load(self, checkpoint_dir):
-        file_name = "%s.model" % self.model_name
-        file_name = self.model_name   # hyunjae
+        file_name = "%s" % self.model_name
         self.loader.restore(self.session, os.path.join(checkpoint_dir, file_name))
         print("Model loaded", file_name)
-
-    def load_pre_bidaf(self, sess):
-        vars_ = {var.name.split(":")[0]: var for var in tf.global_variables()}
-        if config.load_ema:
-            ema = self.model.var_ema
-            for var in tf.trainable_variables():
-                del vars_[var.name.split(":")[0]]
-                vars_[ema.average_name(var)] = var
-        saver = tf.train.Saver(vars_)
-
-        save_path = "../pretrained/basic-10000"
-        print("Loading saved model from {}".format(save_path))
-        saver.restore(sess, save_path)
 

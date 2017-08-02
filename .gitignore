@@ -1,5 +1,6 @@
 /data/*
 /result/*
+/results/*
 __pycache__
 
 *.pyc
