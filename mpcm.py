@@ -213,6 +213,31 @@ class MPCM(Basic):
             return conv_output
 
 
+    def char_emb_layer(self, context_char, question_char, char_size, char_emb_dim, char_out, filter_width, cnn_keep_prob, share_conv):
+        with tf.variable_scope("char"): 
+            char_emb_matrix = tf.get_variable(
+                    "char_emb_matrix",shape = [(char_size),char_emb_dim],
+                    dtype = tf.float32, trainable = True)
+               # char_emb_pad = tf.constant(([[0.0]*self.char_emb_dim]),dtype = tf.float32)
+               # char_emb_matrix = tf.concat([char_emb_pad,char_emb_matrix],0)
+
+            char_context_emb = tf.nn.embedding_lookup(char_emb_matrix, context_char)
+            char_question_emb = tf.nn.embedding_lookup(char_emb_matrix, question_char)
+
+            with tf.variable_scope('conv'):
+                char_conv_context = self.char_conv(
+                        char_context_emb,char_emb_dim,char_out,
+                        filter_width,'VALID',scope = 'char_context', keep_prob = cnn_keep_prob)
+                if share_conv:
+                    tf.get_variable_scope().reuse_variables()
+                    char_conv_question = self.char_conv(
+                            char_question_emb,char_emb_dim, char_out,
+                            filter_width,'VALID', scope = 'char_context', keep_prob = cnn_keep_prob) 
+                else:
+                    char_conv_question = self.char_conv(
+                              char_question_emb,char_emb_dem, self.char_out,
+                            filter_width,'VALID', scope = 'char_question', keep_prob = cnn_keep_prob)
+        return char_conv_context, char_conv_question
 
     def build_model(self):
         print("### Building MPCM model ###")
@@ -235,38 +260,18 @@ class MPCM(Basic):
                     reuse=True, scope='Word')
             print(context_embed)
             print(question_embed)
+            
+            char_context_embed, char_question_embed = self.char_emb_layer(self.context_char, self.question_char,
+                    self.char_size, self.char_emb_dim, 
+                    self.char_out, self.filter_width, 
+                    self.cnn_keep_prob, self.share_conv)
 
-            with tf.variable_scope("char"):
-                
-                char_emb_matrix = tf.get_variable(
-                        "char_emb_matrix",shape = [(self.char_size),self.char_emb_dim],
-                        dtype = tf.float32, trainable = True)
-               # char_emb_pad = tf.constant(([[0.0]*self.char_emb_dim]),dtype = tf.float32)
-               # char_emb_matrix = tf.concat([char_emb_pad,char_emb_matrix],0)
-
-                char_context_embed = tf.nn.embedding_lookup(char_emb_matrix, self.context_char)
-                char_question_embed = tf.nn.embedding_lookup(char_emb_matrix, self.question_char)
-                print(char_context_embed)
-                print(char_question_embed)
-
-                with tf.variable_scope('conv'):
-                    char_conv_context = self.char_conv(
-                            char_context_embed,self.char_emb_dim,self.char_out,
-                            self.filter_width,'VALID',scope = 'char_context', keep_prob = self.cnn_keep_prob)
-                    if self.share_conv:
-                        tf.get_variable_scope().reuse_variables()
-                        char_conv_question = self.char_conv(
-                                char_question_embed,self.char_emb_dim, self.char_out,
-                                self.filter_width,'VALID', scope = 'char_context', keep_prob = self.cnn_keep_prob) 
-                    else:
-                        char_conv_question = self.char_conv(
-                                char_question_embed,self.char_emb_dem, self.char_out,
-                                self.filter_width,'VALID', scope = 'char_question', keep_prob = self.cnn_keep_prob)
-
-                    print(char_conv_context)
-                    print(char_conv_question)
-            context_embed_input = dropout(tf.concat([context_embed, char_conv_context],2), self.embed_dropout)
-            question_embed_input = dropout(tf.concat([question_embed, char_conv_question],2),self.embed_dropout)
+            print(char_context_embed)
+            print(char_question_embed)
+            
+            context_embed_input = dropout(tf.concat([context_embed, char_context_embed],2), self.embed_dropout)
+            question_embed_input = dropout(tf.concat([question_embed, char_question_embed],2),self.embed_dropout)
+            
             print(context_embed_input)
             print(question_embed_input)
                          
