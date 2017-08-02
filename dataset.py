@@ -157,10 +157,10 @@ def build_dict(dataset, params):
     reverse_char_dict = {}
     word_maxlen = 0
     char_counter = {}
-    char_dict['UNK'] = 1
-    char_dict['PAD'] = 0
-    reverse_char_dict[1] = 'UNK'
-    reverse_char_dict[0] = 'PAD'
+    char_dict['UNK'] = 0
+    char_dict['PAD'] = 1
+    reverse_char_dict[0] = 'UNK'
+    reverse_char_dict[1] = 'PAD'
     
     for d_idx, document in enumerate(dataset):
         for p_idx, paragraph in enumerate(document['paragraphs']):
