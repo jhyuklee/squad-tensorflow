@@ -127,7 +127,7 @@ class Basic(object):
             logits=start_logits, labels=self.answer_start)) 
         end_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
             logits=end_logits, labels=self.answer_end))
-        #start_loss = tf.Print(start_loss, [start_loss, end_loss], "loss : ")
+        start_loss = tf.Print(start_loss, [start_loss, end_loss], "loss : ")
         start_loss = tf.clip_by_value(start_loss, -1, 10)
         end_loss = tf.clip_by_value(end_loss, -1, 10)
         self.loss = start_loss + end_loss

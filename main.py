@@ -98,25 +98,29 @@ def run(model, params, train_dataset, dev_dataset, idx2word):
         if (epoch_idx + 1) % test_epoch == 0:
             em, f1, loss = run_epoch(model, dev_dataset, 0, idx2word, 
                     params, is_train=False)
-            
+            if em < 0.1 and epoch_idx > 5: break
             if max_f1 > f1 - 1e-2 and epoch_idx > 0 and early_stop:
                 print('Max f1: %.3f, em: %.3f, epoch: %d' % (max_f1, max_em, max_ep))
                 es_cnt += 1
-                if es_cnt > 3:
-                    print('\nEarly stopping')
-                    print('Max f1: %.3f, em: %.3f, epoch: %d' % (max_f1, max_em, max_ep))
-                    break
-                else: 
-                    # Learning rate decay exponentially
-                    print('\nLower learning rate from %f to %f (%d/3)' % (
-                        params['learning_rate'], params['learning_rate'] / 2, es_cnt))
-                    params['learning_rate'] /= 2
+                if epoch_idx > 15:
+                    if es_cnt > 3 :
+                        print('\nEarly stopping')
+                        print('Max f1: %.3f, em: %.3f, epoch: %d' % (max_f1, max_em, max_ep))
+                        break
+                    else: 
+                        # Learning rate decay exponentially
+                        print('\nLower learning rate from %f to %f (%d/3)' % (
+                            params['learning_rate'], params['learning_rate'] / 2, es_cnt))
+                        params['learning_rate'] /= 2
             else:
                 es_cnt = 0
-                max_ep = max_ep if max_em > em else (epoch_idx + 1)
-                max_em = max_em if max_em > em else em 
-                max_f1 = max_f1 if max_f1 > f1 else f1
-                print('Max f1: %.3f, em: %.3f, epoch: %d' % (max_f1, max_em, max_ep))
+                if max_f1 + max_em > f1 + em:
+                    max_ep = epoch_idx + 1
+                    maxep_em = em
+                    maxep_f1 = f1
+                    if em > max_em : max_em = em
+                    if f1 > max_f1 : max_f1 = f1
+                    print('Max f1: %.3f, em: %.3f, epoch: %d' % (max_f1, max_em, max_ep, maxep_em, maxep_f1))
                 
                 if params['save']:
                     model.save(params['checkpoint_dir'])

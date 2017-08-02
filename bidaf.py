@@ -28,7 +28,67 @@ class BiDAF(Basic):
     #def character_embedding_layer():
 
     #def word_embedding_layer():
-    
+
+    def init_bidaf(self):
+        self.cell_fw = BasicLSTMCell(self.dim_rnn_cell, state_is_tuple=True)
+        self.cell_bw = BasicLSTMCell(self.dim_rnn_cell, state_is_tuple=True)
+        self.d_cell_fw = SwitchableDropoutWrapper(self.cell_fw, self.is_train, \
+                    input_keep_prob=self.input_keep_prob)
+        self.d_cell_bw = SwitchableDropoutWrapper(self.cell_bw, self.is_train,\
+                    input_keep_prob=self.input_keep_prob)
+        self.cell2_fw = BasicLSTMCell(self.dim_rnn_cell, state_is_tuple=True)
+        self.cell2_bw = BasicLSTMCell(self.dim_rnn_cell, state_is_tuple=True)
+        self.d_cell2_fw = SwitchableDropoutWrapper(self.cell2_fw, self.is_train, \
+                    input_keep_prob=self.input_keep_prob)
+        self.d_cell2_bw = SwitchableDropoutWrapper(self.cell2_bw, self.is_train, \
+                    input_keep_prob=self.input_keep_prob)
+        self.cell3_fw = BasicLSTMCell(self.dim_rnn_cell, state_is_tuple=True)
+        self.cell3_bw = BasicLSTMCell(self.dim_rnn_cell, state_is_tuple=True)
+        self.d_cell3_fw = SwitchableDropoutWrapper(self.cell3_fw, self.is_train, \
+                    input_keep_prob=self.input_keep_prob)
+        self.d_cell3_bw = SwitchableDropoutWrapper(self.cell3_bw, self.is_train, \
+                    input_keep_prob=self.input_keep_prob)
+        self.cell4_fw = BasicLSTMCell(self.dim_rnn_cell, state_is_tuple=True)
+        self.cell4_bw = BasicLSTMCell(self.dim_rnn_cell, state_is_tuple=True)
+        self.d_cell4_fw = SwitchableDropoutWrapper(self.cell4_fw, self.is_train, \
+                    input_keep_prob=self.input_keep_prob)
+        self.d_cell4_bw = SwitchableDropoutWrapper(self.cell4_bw, self.is_train, \
+                  input_keep_prob=self.input_keep_prob)
+
+        self.x_mask = tf.sequence_mask(lengths=self.context_len, maxlen=self.context_maxlen)
+        self.x_mask = tf.expand_dims(self.x_mask, 1)
+        self.q_mask = tf.sequence_mask(lengths=self.question_len, maxlen=self.question_maxlen)
+        
+        context_embed = dropout(embedding_lookup(
+                inputs=self.context,
+                voca_size=self.voca_size,
+                embedding_dim=self.dim_embed_word, 
+                initializer=self.initializer, 
+                trainable=self.embed_trainable,
+                reuse=True, scope='Word'), self.embed_dropout)
+        
+        question_embed = dropout(embedding_lookup(
+                inputs=self.question,
+                voca_size=self.voca_size,
+                embedding_dim=self.dim_embed_word,
+                initializer=self.initializer,
+                trainable=self.embed_trainable,
+                reuse=True, scope='Word'), self.embed_dropout)
+        
+        self.N = context_embed.get_shape().as_list()[0]
+        self.JX = context_embed.get_shape().as_list()[1]
+        self.JQ = question_embed.get_shape().as_list()[1]
+        self.con_len = tf.expand_dims(self.context_len, 1)
+        xx = tf.expand_dims(context_embed, 1)
+        qq = question_embed
+        if self.highway:
+            with tf.variable_scope("highway"):
+                xx = highway_network(xx, self.highway_num_layers, True, wd=self.wd, is_train=self.is_train)
+                tf.get_variable_scope().reuse_variables()
+                qq = highway_network(qq, self.highway_num_layers, True, wd=self.wd, is_train=self.is_train)
+        return xx, qq
+
+
     def contextual_embedding_layer(self, xx, qq, reuse=None):
         ### contextual embedding layer
         if self.load_seo: vs="prepro"
@@ -136,8 +196,8 @@ class BiDAF(Basic):
             flat_logits2 = tf.reshape(logits2, [-1, M * JX])
             flat_yp2 = tf.nn.softmax(flat_logits2)
 
-            #flat_logits = tf.Print(flat_logits, [flat_logits], "flat_logits : ")
-            #flat_logits2 = tf.Print(flat_logits2, [flat_logits2], "flat_logits2 : ")
+            flat_logits = tf.Print(flat_logits, [flat_logits], "flat_logits : ")
+            flat_logits2 = tf.Print(flat_logits2, [flat_logits2], "flat_logits2 : ")
 
             yp = tf.reshape(flat_yp, [-1, M, JX])
             yp2 = tf.reshape(flat_yp2, [-1, M, JX])
@@ -150,63 +210,8 @@ class BiDAF(Basic):
 
     def build_model(self):
         print("### Building a BiDAF model ###")
-        self.cell_fw = BasicLSTMCell(self.dim_rnn_cell, state_is_tuple=True)
-        self.cell_bw = BasicLSTMCell(self.dim_rnn_cell, state_is_tuple=True)
-        self.d_cell_fw = SwitchableDropoutWrapper(self.cell_fw, self.is_train, \
-                    input_keep_prob=self.input_keep_prob)
-        self.d_cell_bw = SwitchableDropoutWrapper(self.cell_bw, self.is_train,\
-                    input_keep_prob=self.input_keep_prob)
-        self.cell2_fw = BasicLSTMCell(self.dim_rnn_cell, state_is_tuple=True)
-        self.cell2_bw = BasicLSTMCell(self.dim_rnn_cell, state_is_tuple=True)
-        self.d_cell2_fw = SwitchableDropoutWrapper(self.cell2_fw, self.is_train, \
-                    input_keep_prob=self.input_keep_prob)
-        self.d_cell2_bw = SwitchableDropoutWrapper(self.cell2_bw, self.is_train, \
-                    input_keep_prob=self.input_keep_prob)
-        self.cell3_fw = BasicLSTMCell(self.dim_rnn_cell, state_is_tuple=True)
-        self.cell3_bw = BasicLSTMCell(self.dim_rnn_cell, state_is_tuple=True)
-        self.d_cell3_fw = SwitchableDropoutWrapper(self.cell3_fw, self.is_train, \
-                    input_keep_prob=self.input_keep_prob)
-        self.d_cell3_bw = SwitchableDropoutWrapper(self.cell3_bw, self.is_train, \
-                    input_keep_prob=self.input_keep_prob)
-        self.cell4_fw = BasicLSTMCell(self.dim_rnn_cell, state_is_tuple=True)
-        self.cell4_bw = BasicLSTMCell(self.dim_rnn_cell, state_is_tuple=True)
-        self.d_cell4_fw = SwitchableDropoutWrapper(self.cell4_fw, self.is_train, \
-                    input_keep_prob=self.input_keep_prob)
-        self.d_cell4_bw = SwitchableDropoutWrapper(self.cell4_bw, self.is_train, \
-                  input_keep_prob=self.input_keep_prob)
 
-        self.x_mask = tf.sequence_mask(lengths=self.context_len, maxlen=self.context_maxlen)
-        self.x_mask = tf.expand_dims(self.x_mask, 1)
-        self.q_mask = tf.sequence_mask(lengths=self.question_len, maxlen=self.question_maxlen)
-        
-        context_embed = dropout(embedding_lookup(
-                inputs=self.context,
-                voca_size=self.voca_size,
-                embedding_dim=self.dim_embed_word, 
-                initializer=self.initializer, 
-                trainable=self.embed_trainable,
-                reuse=True, scope='Word'), self.embed_dropout)
-        
-        question_embed = dropout(embedding_lookup(
-                inputs=self.question,
-                voca_size=self.voca_size,
-                embedding_dim=self.dim_embed_word,
-                initializer=self.initializer,
-                trainable=self.embed_trainable,
-                reuse=True, scope='Word'), self.embed_dropout)
-        
-        self.N = context_embed.get_shape().as_list()[0]
-        self.JX = context_embed.get_shape().as_list()[1]
-        self.JQ = question_embed.get_shape().as_list()[1]
-        self.con_len = tf.expand_dims(self.context_len, 1)
-        xx = tf.expand_dims(context_embed, 1)
-        qq = question_embed
-        if self.highway:
-            with tf.variable_scope("highway"):
-                xx = highway_network(xx, self.highway_num_layers, True, wd=self.wd, is_train=self.is_train)
-                tf.get_variable_scope().reuse_variables()
-                qq = highway_network(qq, self.highway_num_layers, True, wd=self.wd, is_train=self.is_train)
- 
+        xx, qq = self.init_bidaf()
         H, U = self.contextual_embedding_layer(xx, qq)
         print('# Contextual_Embedding_layer', H, U)
         #H = tf.Print(H, [H], "H : ")
