@@ -25,7 +25,7 @@ class Basic(object):
         self.context_maxlen = params['context_maxlen']
         self.question_maxlen = params['question_maxlen']
         self.rnn_layer = params['rnn_layer']
-        self.voca_size = params['voca_size'] 
+        self.voca_size = params['voca_size']
         self.dim_embed_word = params['dim_embed_word']
         self.dim_hidden = params['dim_hidden']
         self.dim_rnn_cell = params['dim_rnn_cell']
@@ -127,7 +127,7 @@ class Basic(object):
         print('hidden', hidden1)
 
         start_logits = linear(inputs=hidden1,
-            output_dim=self.dim_output, 
+            output_dim=self.dim_output,
             scope='Output_s')
 
         end_logits = linear(inputs=hidden1,

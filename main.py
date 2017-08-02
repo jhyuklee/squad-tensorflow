@@ -11,7 +11,8 @@ import os
 from model import Basic
 from mpcm import MPCM
 from ql_mpcm import QL_MPCM
-# from bidaf import BiDAF
+from bidaf import BiDAF
+from my_bidaf import My_BiDAF
 from time import gmtime, strftime
 from dataset import read_data, build_dict, load_glove, preprocess, load_lm
 from run import run_epoch
@@ -69,9 +70,15 @@ flags.DEFINE_boolean("anneal_exp", False, "True to anneal exploration")
 flags.DEFINE_boolean("train_pp_only", True, "True to train paraphrase only")
 
 # Bidaf settings
+flags.DEFINE_integer("highway_num_layers", 2, "highway_num_layers [2]")
+flags.DEFINE_integer("hidden_size", 100, "Hidden size [100]")
 flags.DEFINE_float("input_keep_prob", 0.8, "Input keep prob of LSTM weights [0.8]")
 flags.DEFINE_float("wd", 0.0, "L2 weight decay for regularization [0.0]")
 flags.DEFINE_boolean("share_lstm_weights", True, "Share LSTM weights [True]")
+flags.DEFINE_boolean("use_char_emb", True, "use char emb? [True]")
+flags.DEFINE_boolean("use_word_emb", True, "use word emb? [True]")
+flags.DEFINE_boolean("highway", True, "Use highway? [True]")
+flags.DEFINE_boolean('load_seo', True, "load Seo's pretrained bidaf")
 flags.DEFINE_string('logit_func', 'tri_linear', 'logit func [tri_linear]')
 flags.DEFINE_string('answer_func', 'linear', 'answer logit func [linear]')
 
@@ -236,6 +243,8 @@ def main(_):
             my_model = Basic(params, initializer=[pretrained_glove, word2idx])
         elif 'bidaf' == params['mode']:
             my_model = BiDAF(params, initializer=[pretrained_glove, word2idx])
+        elif 'my_bidaf' == params['mode']:
+            my_model = My_BiDAF(params, initializer=[pretrained_glove, word2idx])
         else:
             assert False, "Check your version %s" % params['mode']
 

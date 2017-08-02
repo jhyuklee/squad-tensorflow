@@ -293,6 +293,9 @@ def run_epoch(model, dataset, epoch, base_iter, idx2word, params,
                     feed_dict[model.rnn_dropout] = 1.0
                     feed_dict[model.hidden_dropout] = 1.0
                     feed_dict[model.embed_dropout] = 1.0
+                
+                if params['mode'] == 'bidaf':
+                    feed_dict[model.is_train] = is_train
 
                 # do not train when 'pp_only'
                 loss, start_logits, end_logits, lr, _ = sess.run(
