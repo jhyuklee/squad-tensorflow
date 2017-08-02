@@ -10,6 +10,7 @@ class QL_MPCM(MPCM):
         self.num_paraphrase = params['num_paraphrase']
         self.dim_action = params['dim_action']
         self.max_action = params['max_action']
+        self.reg_param = params['reg_param']
         self.init_exp = params['init_exp']
         self.final_exp = params['final_exp']
         self.pp_dim_rnn_cell = params['pp_dim_rnn_cell']
@@ -132,8 +133,8 @@ class QL_MPCM(MPCM):
         print('pp optimize', [p.name for p in self.policy_params])
 
         # Regularizer not used
-        reg_loss = tf.reduce_sum(
-                [tf.reduce_sum(tf.square(x)) for x in self.policy_params]) * 0.01
+        reg_loss = tf.reduce_sum([tf.reduce_sum(tf.square(x)) 
+                    for x in self.policy_params]) * self.reg_param
         total_loss = tf.reduce_mean(pg_loss) + reg_loss
         
         self.policy_gradients = self.optimizer.compute_gradients(total_loss,

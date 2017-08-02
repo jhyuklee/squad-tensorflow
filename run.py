@@ -12,10 +12,10 @@ def run_paraphrase(question, question_len, context, context_len,
             0: 'NONE',
             1: 'DEL',
             2: 'SUB0',
-            4: 'SUB1',
-            6: 'SUB2',
-            3: 'INS0F',
-            5: 'INS1F',
+            3: 'SUB1',
+            4: 'SUB2',
+            5: 'INS0F',
+            6: 'INS1F',
             7: 'INS2F',
             8: 'INS0B',
             9: 'INS1B',
@@ -46,6 +46,7 @@ def run_paraphrase(question, question_len, context, context_len,
         new_sentence = []
         action_cnt = 0
         itr = 0
+        edit_distance = 0
 
         # Choose max actions that is not 'NONE'
         valid_probs = np.array([a[idx] for a, idx in zip(actions_prob, actions)])
@@ -63,14 +64,17 @@ def run_paraphrase(question, question_len, context, context_len,
                 itr += 1
             elif idx2action[act] == 'DEL':
                 itr += 1
+                edit_distance += 1
             elif idx2action[act] == 'SUB0':
                 new_sentence.append(c_org[c_s[itr]])
                 itr += 1
+                edit_distance += 1
             elif idx2action[act] == 'SUB1':
                 new_sentence.append(c_org[c_s[itr]])
                 if c_s[itr] < params['context_maxlen']-1:
                     new_sentence.append(c_org[c_s[itr]+1])
                 itr += 1
+                edit_distance += 2
             elif idx2action[act] == 'SUB2':
                 new_sentence.append(c_org[c_s[itr]])
                 if c_s[itr] < params['context_maxlen']-1:
@@ -78,16 +82,19 @@ def run_paraphrase(question, question_len, context, context_len,
                 if c_s[itr] < params['context_maxlen']-2:
                     new_sentence.append(c_org[c_s[itr]+2])
                 itr += 1
+                edit_distance += 3
             elif idx2action[act] == 'INS0F':
                 new_sentence.append(sentence[itr])
                 new_sentence.append(c_org[c_s[itr]])
                 itr += 1
+                edit_distance += 1
             elif idx2action[act] == 'INS1F':
                 new_sentence.append(sentence[itr])
                 new_sentence.append(c_org[c_s[itr]])
                 if c_s[itr] < params['context_maxlen']-1:
                     new_sentence.append(c_org[c_s[itr]+1])
                 itr += 1
+                edit_distance += 2
             elif idx2action[act] == 'INS2F':
                 new_sentence.append(sentence[itr])
                 new_sentence.append(c_org[c_s[itr]])
@@ -96,16 +103,19 @@ def run_paraphrase(question, question_len, context, context_len,
                 if c_s[itr] < params['context_maxlen']-2:
                     new_sentence.append(c_org[c_s[itr]+2])
                 itr += 1
+                edit_distance += 3
             elif idx2action[act] == 'INS0B':
                 new_sentence.append(c_org[c_s[itr]])
                 new_sentence.append(sentence[itr])
                 itr += 1
+                edit_distance += 1
             elif idx2action[act] == 'INS1B':
                 new_sentence.append(c_org[c_s[itr]])
                 if c_s[itr] < params['context_maxlen']-1:
                     new_sentence.append(c_org[c_s[itr]+1])
                 new_sentence.append(sentence[itr])
                 itr += 1
+                edit_distance += 2
             elif idx2action[act] == 'INS2B':
                 new_sentence.append(c_org[c_s[itr]])
                 if c_s[itr] < params['context_maxlen']-1:
@@ -114,6 +124,7 @@ def run_paraphrase(question, question_len, context, context_len,
                     new_sentence.append(c_org[c_s[itr]+2])
                 new_sentence.append(sentence[itr])
                 itr += 1
+                edit_distance += 3
             else:
                 assert False, 'Invalid action %d'% act
 
@@ -127,17 +138,19 @@ def run_paraphrase(question, question_len, context, context_len,
         new_length = (new_length if new_length < model.question_maxlen
                 else model.question_maxlen)
 
-        return new_sentence, new_length
+        return new_sentence, new_length, edit_distance
    
     # Get paraphrased question according to the taken_action (batch unpack)
     paraphrased_q = []
     paraphrased_qlen = []
+    edit_distances = []
     for org_q, org_q_len, action, a_prob, c_s, org_c in zip(
             question, question_len, taken_action, action_prob, c_sim, context):
-        new_q, new_qlen = paraphrase_question(
+        new_q, new_qlen, ed = paraphrase_question(
                 org_q, org_q_len, action, a_prob, c_s, org_c, model.max_action)
         paraphrased_q.append(new_q)
         paraphrased_qlen.append(new_qlen)
+        edit_distances.append(ed)
 
     # Get scores for paraphrased question
     feed_dict[model.paraphrases[pp_idx]] = np.array(paraphrased_q)
@@ -149,13 +162,18 @@ def run_paraphrase(question, question_len, context, context_len,
 
     dprint('\nparaphrased em %s' % em_s, params['debug'])
     dprint('baeline em %s' % baseline_em, params['debug'])
-    dprint('advantage em %s' % (em_s - baseline_em), params['debug'])
+    dprint('advantage em %s' % (em_s + f1_s - baseline_em - baseline_f1), 
+            params['debug'])
     max_idx = np.argmax(em_s + f1_s - baseline_em - baseline_f1)
-    dprint('max idx: %d, em: %.3f, f1: %.3f' % (
-        max_idx, em_s[max_idx], f1_s[max_idx]), params['debug'])
+    dprint('edit distance %s' % edit_distances, params['debug'])
+    dprint('max idx: %d, before em:%.3f, f1:%.3f // after em:%.3f, f1:%.3f' % (
+        max_idx, baseline_em[max_idx], baseline_f1[max_idx], 
+        em_s[max_idx], f1_s[max_idx]), params['debug'])
     dprint('\nRules %s'% (' '.join([idx2action[idx]
                 for idx in taken_action[max_idx][:question_len[max_idx]]])), 
                 params['debug'])
+    dprint('Action prob %s'% [aa
+        for aa in action_prob[max_idx][:question_len[max_idx]]], params['debug'])
     dprint('original %s' % [idx2word[w] 
         for w in question[max_idx][:question_len[max_idx]]], params['debug'])
     dprint('similarity %s' % [idx2word[context[max_idx, w]]
@@ -163,24 +181,35 @@ def run_paraphrase(question, question_len, context, context_len,
     dprint('changed %s' % [idx2word[w] 
         for w in paraphrased_q[max_idx][:paraphrased_qlen[max_idx]]], params['debug'])
     dprint('Model number %s'% model.ymdhms, params['debug']) 
+    dprint('-----------------------------------------------------------------------', 
+            params['debug'])
+
     # Use REINFORE with original em, f1 as baseline (per example)
     rewards = np.sum([em_s, f1_s], axis=0) / 2
     baselines = np.sum([baseline_em, baseline_f1], axis=0) / 2
     # advantages = np.clip(
     #         rewards / (baselines + 1e-5) - 1, -1, params['rb_clip']) + rewards
-    advantages = []
-    for r, b in zip(rewards, baselines):
-        if r > b:
-            advantages.append(1)
-        elif r == b:
-            advantages.append(0)
-        elif r < b:
-            advantages.append(-1)
-        else:
-            assert False, 'Invalid r, b'
     """
     advantages = rewards - baselines
     """
+    advantages = []
+    smry_advs = []
+    for r, b, ed in zip(rewards, baselines, edit_distances):
+        edr = ed / 100.0
+        if r > b:
+            advantages.append(1)
+            smry_advs.append(1)
+        elif r == b:
+            if ed > 0:
+                advantages.append(0.5)
+            else:
+                advantages.append(0)
+            smry_advs.append(0)
+        elif r < b:
+            advantages.append(-1)
+            smry_advs.append(-1)
+        else:
+            assert False, 'Invalid r, b'
 
     feed_dict[model.taken_actions[pp_idx]] = taken_action
     feed_dict[model.advantages[pp_idx]] = advantages
@@ -188,7 +217,7 @@ def run_paraphrase(question, question_len, context, context_len,
         model.pp_optimize[pp_idx] if is_train else model.no_op,
         model.pp_loss[pp_idx], model.merged_summary], feed_dict=feed_dict)
 
-    advantages = np.mean(advantages)
+    advantages = np.mean(smry_advs)
     rewards = np.mean(rewards)
     baselines = np.mean(baselines)
     pp_em = np.sum(em_s) / len(question)
@@ -327,11 +356,11 @@ def run_epoch(model, dataset, epoch, base_iter, idx2word, params,
                                 summary_writer)
 
                     _progress = progress(dataset_idx / float(len(dataset)))
-                    _progress += "loss:%.2f, em:%.2f, f1:%.2f" % (loss, em, f1)
+                    _progress += "loss:%.3f, em:%.3f, f1:%.3f" % (loss, em, f1)
                     _progress += ", idx:%d/%d [e%d]" %(
                             dataset_idx, len(dataset), epoch)
                     if params['mode'] == 'q':
-                        _progress += " adv:%.2f" % (pp_advantage[0]/pp_cnt)
+                        _progress += " adv:%.3f" % (pp_advantage[0]/pp_cnt)
                     sys.stdout.write(_progress)
                     sys.stdout.flush()
                     
@@ -353,7 +382,8 @@ def run_epoch(model, dataset, epoch, base_iter, idx2word, params,
         total_loss, total_em, total_f1))
 
     if params['mode'] == 'q':
-        model.anneal_exploration()
+        if params['anneal_exp']:
+            model.anneal_exploration()
         pp_em[0] /= pp_cnt
         pp_f1[0] /= pp_cnt
         pp_losses[0] /= pp_cnt

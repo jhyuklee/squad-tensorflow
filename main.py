@@ -27,9 +27,9 @@ flags.DEFINE_integer("context_maxlen", 0, "Predefined context length (0 for max)
 flags.DEFINE_float("rnn_dropout", 0.5, "Dropout of RNN cell")
 flags.DEFINE_float("hidden_dropout", 0.5, "Dropout rate of hidden layer")
 flags.DEFINE_float("embed_dropout", 0.8, "Dropout rate of embedding layer")
-flags.DEFINE_float("learning_rate", 1e-3, "Init learning rate of the optimzier")
+flags.DEFINE_float("learning_rate", 1e-5, "Init learning rate of the optimzier")
 flags.DEFINE_float("max_grad_norm", 5.0, "Maximum gradient to clip")
-flags.DEFINE_string("optimizer", "m", "[s]sgd [m]momentum [a]adam")
+flags.DEFINE_string("optimizer", "a", "[s]sgd [m]momentum [a]adam")
 
 # Run options
 flags.DEFINE_integer('train_epoch', 100, 'Training epoch')
@@ -53,17 +53,19 @@ flags.DEFINE_integer("dim_perspective", 20, "Maximum number of perspective (20)"
 
 # Paraphrase settings
 flags.DEFINE_integer("num_paraphrase", 1, "Maximum iter of question paraphrasing")
-flags.DEFINE_integer("dim_action", 8, "Dimension of action space")
+flags.DEFINE_integer("dim_action", 5, "Dimension of action space")
 flags.DEFINE_integer("max_action", 0, "Maximum possible sampled actions")
 flags.DEFINE_integer("rb_clip", 2, "Maximum R/B clip")
 flags.DEFINE_integer("pp_dim_rnn_cell", 100, "Dimension of RNN cell (100)")
-flags.DEFINE_integer("pp_rnn_layer", 3, "Layer number of RNN")
+flags.DEFINE_integer("pp_rnn_layer", 1, "Layer number of RNN")
 flags.DEFINE_string("policy_q", "e", "question [e] embed [h] hidden")
 flags.DEFINE_string("policy_c", "e", "context [e] embed [h] hidden")
 flags.DEFINE_string("similarity_q", "e", "question [e] embed [h] hidden")
 flags.DEFINE_string("similarity_c", "e", "context [e] embed [h] hidden")
+flags.DEFINE_float("reg_param", 0.0, "Regularization parameter")
 flags.DEFINE_float("init_exp", 0.0, "Initial exploration prob")
 flags.DEFINE_float("final_exp", 0.0, "Final exploration prob")
+flags.DEFINE_boolean("anneal_exp", False, "True to anneal exploration")
 flags.DEFINE_boolean("train_pp_only", True, "True to train paraphrase only")
 
 # Bidaf settings
@@ -194,7 +196,8 @@ def main(_):
         - title
     """
     # Preprocess dataset
-    word2idx, idx2word, c_maxlen, q_maxlen = build_dict(train_dataset, saved_params)
+    whole_dataset = np.append(train_dataset, dev_dataset, axis=0)
+    word2idx, idx2word, c_maxlen, q_maxlen = build_dict(whole_dataset, saved_params)
     pretrained_glove, word2idx, idx2word = load_glove(word2idx, saved_params)
     if saved_params['context_maxlen'] > 0: 
         c_maxlen = saved_params['context_maxlen']
@@ -205,7 +208,6 @@ def main(_):
     saved_params['question_maxlen'] = q_maxlen
     saved_params['voca_size'] = len(word2idx)
     saved_params['dim_output'] = c_maxlen
-    
 
     for model_idx in range(saved_params['validation_cnt']):
         # Copy params, ready for validation
