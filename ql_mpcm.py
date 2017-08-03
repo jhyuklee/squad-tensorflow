@@ -44,8 +44,8 @@ class QL_MPCM(MPCM):
             n_context = context / tf.expand_dims(c_norm, -1)
             n_question = question / tf.expand_dims(q_norm, -1)
             tr_question = tf.transpose(n_question, [0, 2, 1])
-            sim_mat_dim = (self.dim_embed_word if self.similarity_q == 'e'
-                    else self.dim_rnn_cell * 2)
+            sim_mat_dim = (self.dim_embed_word + self.char_out 
+                    if self.similarity_q == 'e' else self.dim_rnn_cell * 2)
             sim_mat = tf.get_variable('sim_mat',
                     initializer=tf.eye(sim_mat_dim), dtype=tf.float32)
             # sim_mat = tf.get_variable('sim_mat',
@@ -155,26 +155,35 @@ class QL_MPCM(MPCM):
 
     def build_model(self):
         print("Question Learning Model")
-        context_embed = dropout(embedding_lookup(
+        context_embed = embedding_lookup(
                 inputs=self.context,
                 voca_size=self.voca_size,
                 embedding_dim=self.dim_embed_word, 
                 initializer=self.initializer, 
                 trainable=self.embed_trainable,
-                reuse=True, scope='Word'), self.embed_dropout)
+                reuse=True, scope='Word')
+        
+        char_context_embed, char_question_embed = self.char_emb_layer(
+                self.context_char, self.question_char,
+                self.char_size, self.char_emb_dim, 
+                self.char_out, self.filter_width, 
+                self.cnn_keep_prob, self.share_conv)
+        
+        context_embed_input = dropout(tf.concat(
+            [context_embed, char_context_embed],2), self.embed_dropout)
 
         for pp_idx in range(self.num_paraphrase + 1):
             if pp_idx > 0: # Start paraphrase
                 # Similarity calculate
-                similarity_q = (question_embed if self.similarity_q == 'e'
+                similarity_q = (question_embed_input if self.similarity_q == 'e'
                         else question_rep)
-                similarity_c = (context_embed if self.similarity_c == 'e'
+                similarity_c = (context_embed_input if self.similarity_c == 'e'
                         else context_rep)
                 candidate = self.similarity_layer(similarity_c, similarity_q,
                         context_rep)
 
                 # Policy network for paraphrase
-                policy_q = (question_embed if self.policy_q == 'e'
+                policy_q = (question_embed_input if self.policy_q == 'e'
                         else question_rep)
                 _, action_logit = self.paraphrase_layer(
                         policy_q, c_state,
@@ -190,19 +199,23 @@ class QL_MPCM(MPCM):
             else: # No paraphrase (pp_idx = 0)
                 paraphrased = self.question
             
-            question_embed = dropout(embedding_lookup(
+            question_embed = embedding_lookup(
                     inputs=paraphrased,
                     voca_size=self.voca_size,
                     embedding_dim=self.dim_embed_word,
                     initializer=self.initializer,
                     trainable=self.embed_trainable,
-                    reuse=True, scope='Word'), self.embed_dropout)
+                    reuse=True, scope='Word')
+            
+            question_embed_input = dropout(tf.concat(
+                [question_embed, char_question_embed], 2), self.embed_dropout)
 
-            question_rep, _ = self.representation_layer(question_embed, 
+            question_rep, _ = self.representation_layer(question_embed_input, 
                     self.question_len, self.question_maxlen,
                     scope='Question', reuse=(pp_idx>0))
             
-            context_filtered = self.filter_layer(context_embed, question_embed, 
+            context_filtered = self.filter_layer(
+                    context_embed_input, question_embed_input, 
                     reuse=(pp_idx>0))
             print('# Filter_layer', context_filtered)
           

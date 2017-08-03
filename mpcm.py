@@ -249,26 +249,18 @@ class MPCM(Basic):
                     initializer=self.initializer,
                     trainable=self.embed_trainable,
                     reuse=True, scope='Word')
-            print(context_embed)
-            print(question_embed)
             
             char_context_embed, char_question_embed = self.char_emb_layer(
                     self.context_char, self.question_char,
                     self.char_size, self.char_emb_dim, 
                     self.char_out, self.filter_width, 
                     self.cnn_keep_prob, self.share_conv)
-
-            print(char_context_embed)
-            print(char_question_embed)
             
             context_embed_input = dropout(tf.concat(
                 [context_embed, char_context_embed],2), self.embed_dropout)
             question_embed_input = dropout(tf.concat(
                 [question_embed, char_question_embed],2),self.embed_dropout)
             
-            print(context_embed_input)
-            print(question_embed_input)
-                         
             context_filtered = self.filter_layer(
                     context_embed_input, question_embed_input)
             # context_filtered = dropout(context_filtered, self.embed_dropout)
@@ -280,7 +272,7 @@ class MPCM(Basic):
             # context_rep = dropout(context_rep, self.embed_dropout)
             context_rep = self.apply_mask(context_rep, self.context_mask)
 
-            question_rep, _ = self.representation_layer(question_embed, 
+            question_rep, _ = self.representation_layer(question_embed_input, 
                     self.question_len, self.question_maxlen, scope='Question')
             # question_rep = dropout(question_rep, self.embed_dropout)
             question_rep = self.apply_mask(question_rep, self.question_mask)
@@ -294,7 +286,7 @@ class MPCM(Basic):
         with tf.device('/gpu:0'):
             aggregates = self.aggregation_layer(
                     matchings, self.context_maxlen, self.context_len)
-            # aggregates = dropout(aggregates, self.embed_dropout)
+            aggregates = dropout(aggregates, self.embed_dropout)
             aggregates = self.apply_mask(aggregates, self.context_mask)
             print('# Aggregation_layer', aggregates)        
 

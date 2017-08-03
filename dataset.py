@@ -77,11 +77,11 @@ def tokenize_corenlp(words):
     return result    
 
 
-
 def tokenize(words):
     result = [token.replace("''", '"').replace("``", '"').lower() 
             for token in nltk.word_tokenize(words)]
     return result
+
 
 def word2idx(words, dictionary, max_length=None):
     result_idx = []
@@ -99,6 +99,7 @@ def word2idx(words, dictionary, max_length=None):
             result_idx = result_idx[:max_length]
 
     return result_idx, original_len
+
 
 def char2idx(words, char_dictionary, word_maxlen = None, max_length = None):
     result_idx = []
@@ -137,6 +138,7 @@ def word2cnt(words, counter):
             counter[word] = 1
         else:
             counter[word] += 1
+
 
 def char2cnt(word_list, counter):
     for word in word_list:

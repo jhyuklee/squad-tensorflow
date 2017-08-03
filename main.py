@@ -28,7 +28,7 @@ flags.DEFINE_integer("context_maxlen", 0, "Predefined context length (0 for max)
 flags.DEFINE_float("rnn_dropout", 0.5, "Dropout of RNN cell")
 flags.DEFINE_float("hidden_dropout", 0.5, "Dropout rate of hidden layer")
 flags.DEFINE_float("embed_dropout", 0.8, "Dropout rate of embedding layer")
-flags.DEFINE_float("learning_rate", 0.00162, "Init learning rate of the optimzier")
+flags.DEFINE_float("learning_rate", 1e-4, "Init learning rate of the optimzier")
 flags.DEFINE_float("max_grad_norm", 5.0, "Maximum gradient to clip")
 flags.DEFINE_string("optimizer", "a", "[s]sgd [m]momentum [a]adam")
 
@@ -44,9 +44,9 @@ flags.DEFINE_boolean("load", False, "True to load model")
 flags.DEFINE_boolean("train", True, "True to train model")
 flags.DEFINE_boolean("summarize", False, "True to have summarization")
 flags.DEFINE_boolean("embed_trainable", False, "True to optimize embedded words")
-flags.DEFINE_string("load_name", "m100_300d6B", "load model name")
+flags.DEFINE_string("load_name", "m100_20170803145040_0", "load model name")
 flags.DEFINE_string("model_name", "none", "Replaced by load_name or auto-named")
-flags.DEFINE_string("mode", "m", "b: basic, m: mpcm, q: ql_mpcm")
+flags.DEFINE_string("mode", "q", "b: basic, m: mpcm, q: ql_mpcm")
 flags.DEFINE_string("ymdhms", "none", "Model index (ymdhMs)")
 
 # MPCM settings
@@ -102,7 +102,6 @@ flags.DEFINE_string('cnn_layer',1, 'Number of CNN layer')
 flags.DEFINE_string('char_out',100,'Character output dim (num of filter)') # TODO
 flags.DEFINE_string('share_conv',True,'Share cnn for context and question')
 flags.DEFINE_string('cnn_keep_prob',0.8,'Dropout for CNN layer')
-
 
 FLAGS = flags.FLAGS
 
