@@ -253,7 +253,7 @@ def run_epoch(model, dataset, epoch, base_iter, idx2word, params,
         c_char_len = dataset_item['char_len']
 
 
-        for qa in dataset_item['qa']:
+        for qa_idx, qa in enumerate(dataset_item['qa']):
             question = qa['q']
             question_len = qa['q_len']
             question_raw = qa['q_raw']
@@ -266,7 +266,8 @@ def run_epoch(model, dataset, epoch, base_iter, idx2word, params,
             q_char_len = qa['q_char_len']
 
             mini_batch.append([context, context_len, 
-                question, question_len, answer_start, answer_end, c_char, c_char_len, q_char, q_char_len])
+                question, question_len, answer_start, 
+                answer_end, c_char, c_char_len, q_char, q_char_len])
             ground_truths.append(answer)
             context_raws.append(context_raw)
             question_raws.append(question_raw)
