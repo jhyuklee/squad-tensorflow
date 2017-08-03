@@ -183,28 +183,82 @@ class MPCM(Basic):
             start_logits = tf.multiply(start_logits, self.context_mask)
             end_logits = tf.multiply(end_logits, self.context_mask)
             return start_logits, end_logits
+    
+    def char_conv(self, inputs, emb_dim, output_dim, filter_width, padding,keep_prob = 1.0,scope = None):
+        with tf.variable_scope('conv' or scope):
+            num_channels = emb_dim
+            conv_filter = tf.get_variable("filter", shape = [1,filter_width, num_channels, output_dim], dtype = tf.float32)
+            bias = tf.get_variable("bias", shape = [output_dim], dtype = tf.float32)
+            strides = [1,1,1,1]
+            inputs = dropout(inputs, keep_prob)
+            conv = tf.nn.conv2d(inputs, conv_filter, strides, padding) + bias
+            conv_output = tf.reduce_max(tf.nn.relu(conv),2)
+            return conv_output
+
+
+    def char_emb_layer(self, context_char, question_char, char_size, char_emb_dim, char_out, filter_width, cnn_keep_prob, share_conv):
+        with tf.variable_scope("char"): 
+            char_emb_matrix = tf.get_variable(
+                    "char_emb_matrix",shape = [(char_size),char_emb_dim],
+                    dtype = tf.float32, trainable = True)
+               # char_emb_pad = tf.constant(([[0.0]*self.char_emb_dim]),dtype = tf.float32)
+               # char_emb_matrix = tf.concat([char_emb_pad,char_emb_matrix],0)
+
+            char_context_emb = tf.nn.embedding_lookup(char_emb_matrix, context_char)
+            char_question_emb = tf.nn.embedding_lookup(char_emb_matrix, question_char)
+
+            with tf.variable_scope('conv'):
+                char_conv_context = self.char_conv(
+                        char_context_emb,char_emb_dim,char_out,
+                        filter_width,'VALID',scope = 'char_context', keep_prob = cnn_keep_prob)
+                if share_conv:
+                    tf.get_variable_scope().reuse_variables()
+                    char_conv_question = self.char_conv(
+                            char_question_emb,char_emb_dim, char_out,
+                            filter_width,'VALID', scope = 'char_context', keep_prob = cnn_keep_prob) 
+                else:
+                    char_conv_question = self.char_conv(
+                              char_question_emb,char_emb_dem, self.char_out,
+                            filter_width,'VALID', scope = 'char_question', keep_prob = cnn_keep_prob)
+        return char_conv_context, char_conv_question
 
     def build_model(self):
         print("### Building MPCM model ###")
 
         with tf.device('/gpu:0'):
-            context_embed = dropout(embedding_lookup(
+            context_embed = embedding_lookup(
                     inputs=self.context,
                     voca_size=self.voca_size,
                     embedding_dim=self.dim_embed_word, 
                     initializer=self.initializer, 
                     trainable=self.embed_trainable,
-                    reuse=True, scope='Word'), self.embed_dropout)
+                    reuse=True, scope='Word')
             
-            question_embed = dropout(embedding_lookup(
+            question_embed = embedding_lookup(
                     inputs=self.question,
                     voca_size=self.voca_size,
                     embedding_dim=self.dim_embed_word,
                     initializer=self.initializer,
                     trainable=self.embed_trainable,
-                    reuse=True, scope='Word'), self.embed_dropout)
+                    reuse=True, scope='Word')
+            print(context_embed)
+            print(question_embed)
+            
+            char_context_embed, char_question_embed = self.char_emb_layer(self.context_char, self.question_char,
+                    self.char_size, self.char_emb_dim, 
+                    self.char_out, self.filter_width, 
+                    self.cnn_keep_prob, self.share_conv)
 
-            context_filtered = self.filter_layer(context_embed, question_embed)
+            print(char_context_embed)
+            print(char_question_embed)
+            
+            context_embed_input = dropout(tf.concat([context_embed, char_context_embed],2), self.embed_dropout)
+            question_embed_input = dropout(tf.concat([question_embed, char_question_embed],2),self.embed_dropout)
+            
+            print(context_embed_input)
+            print(question_embed_input)
+                         
+            context_filtered = self.filter_layer(context_embed_input, question_embed_input)
             # context_filtered = dropout(context_filtered, self.embed_dropout)
             context_filtered = self.apply_mask(context_filtered, self.context_mask)
             print('# Filter_layer', context_filtered)
