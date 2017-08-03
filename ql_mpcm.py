@@ -46,17 +46,16 @@ class QL_MPCM(MPCM):
             tr_question = tf.transpose(n_question, [0, 2, 1])
             sim_mat_dim = (self.dim_embed_word + self.char_out 
                     if self.similarity_q == 'e' else self.dim_rnn_cell * 2)
-            sim_mat = tf.get_variable('sim_mat',
-                    initializer=tf.eye(sim_mat_dim), dtype=tf.float32)
             # sim_mat = tf.get_variable('sim_mat',
-            #         initializer=tf.random_uniform(
-            #              [sim_mat_dim, sim_mat_dim], -1, 1), dtype=tf.float32)
+            #         initializer=tf.eye(sim_mat_dim), dtype=tf.float32)
+            sim_mat = tf.get_variable('sim_mat', [sim_mat_dim, sim_mat_dim],
+                    initializer=tf.random_normal_initializer(), dtype=tf.float32)
             b_sim_mat = tf.scan(lambda a, x: tf.identity(sim_mat), 
                     context, tf.zeros([sim_mat_dim, sim_mat_dim], 
                     dtype=tf.float32)) 
             tmp_cont_sim = tf.matmul(n_context, b_sim_mat)
-            self.similarity = tf.matmul(tmp_cont_sim, tr_question)
-            self.c_sim = tf.argmax(tf.transpose(self.similarity, [0, 2, 1]), axis=2)
+            similarity = tf.matmul(tmp_cont_sim, tr_question)
+            self.c_sim = tf.argmax(tf.transpose(similarity, [0, 2, 1]), axis=2)
         
         if self.policy_c == 'e':
             selected_context = tf.scan(lambda a, x: tf.gather(x[0], x[1]),
@@ -74,6 +73,7 @@ class QL_MPCM(MPCM):
                     (context_rep, self.c_sim), 
                     tf.zeros([self.question_maxlen, self.dim_rnn_cell * 2], 
                         dtype=tf.float32))
+            
 
         return candidate
     
@@ -94,7 +94,9 @@ class QL_MPCM(MPCM):
                         [1, self.question_maxlen, 1])
                 # question = tf.concat(axis=2, values=[question, candidate, c_fb])
                 question = tf.concat(axis=2, values=[question, candidate])
-           
+            
+            print('qq', question)
+
             # Bidirectional
             fw_cell = lstm_cell(
                     self.pp_dim_rnn_cell, self.pp_rnn_layer, self.rnn_dropout)
@@ -102,6 +104,7 @@ class QL_MPCM(MPCM):
                     self.pp_dim_rnn_cell, self.pp_rnn_layer, self.rnn_dropout)
             outputs, state = bi_rnn_model(question, length, fw_cell, bw_cell)
             #        c_state[0], c_state[1])
+            
             outputs_t = tf.reshape(outputs, [-1, self.pp_dim_rnn_cell * 2])
             action_logit = tf.reshape(tf.matmul(outputs_t, weights) + biases,
                     [-1, max_length, self.dim_action])
@@ -179,8 +182,8 @@ class QL_MPCM(MPCM):
                         else question_rep)
                 similarity_c = (context_embed_input if self.similarity_c == 'e'
                         else context_rep)
-                candidate = self.similarity_layer(similarity_c, similarity_q,
-                        context_rep)
+                candidate = self.similarity_layer(similarity_c, 
+                        similarity_q, context_rep)
 
                 # Policy network for paraphrase
                 policy_q = (question_embed_input if self.policy_q == 'e'
