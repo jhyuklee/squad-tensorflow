@@ -28,7 +28,7 @@ flags.DEFINE_integer("context_maxlen", 0, "Predefined context length (0 for max)
 flags.DEFINE_float("rnn_dropout", 0.5, "Dropout of RNN cell")
 flags.DEFINE_float("hidden_dropout", 0.5, "Dropout rate of hidden layer")
 flags.DEFINE_float("embed_dropout", 0.8, "Dropout rate of embedding layer")
-flags.DEFINE_float("learning_rate", 1e-5, "Init learning rate of the optimzier")
+flags.DEFINE_float("learning_rate", 0.00162, "Init learning rate of the optimzier")
 flags.DEFINE_float("max_grad_norm", 5.0, "Maximum gradient to clip")
 flags.DEFINE_string("optimizer", "a", "[s]sgd [m]momentum [a]adam")
 
@@ -46,7 +46,7 @@ flags.DEFINE_boolean("summarize", False, "True to have summarization")
 flags.DEFINE_boolean("embed_trainable", False, "True to optimize embedded words")
 flags.DEFINE_string("load_name", "m100_300d6B", "load model name")
 flags.DEFINE_string("model_name", "none", "Replaced by load_name or auto-named")
-flags.DEFINE_string("mode", "q", "b: basic, m: mpcm, q: ql_mpcm")
+flags.DEFINE_string("mode", "m", "b: basic, m: mpcm, q: ql_mpcm")
 flags.DEFINE_string("ymdhms", "none", "Model index (ymdhMs)")
 
 # MPCM settings
@@ -93,7 +93,16 @@ flags.DEFINE_string("glove_size", "6", "use 6B or 840B for glove")
 flags.DEFINE_string('glove_path', \
         ('~/common/glove/glove.'+ tf.app.flags.FLAGS.glove_size + 'B.'
             + str(tf.app.flags.FLAGS.dim_embed_word) +'d.txt'), 'embed path')
-flags.DEFINE_string('validation_path', './result/validation.txt', 'Validation path')
+flags.DEFINE_string('validation_path', './results/validation.txt', 'Validation path')
+
+# Character embedding
+flags.DEFINE_string('char_emb_dim', 8,'Character embedding dimension')
+flags.DEFINE_string('filter_width', 5, 'CNN fiter width')
+flags.DEFINE_string('cnn_layer',1, 'Number of CNN layer')
+flags.DEFINE_string('char_out',100,'Character output dim (num of filter)') # TODO
+flags.DEFINE_string('share_conv',True,'Share cnn for context and question')
+flags.DEFINE_string('cnn_keep_prob',0.8,'Dropout for CNN layer')
+
 
 FLAGS = flags.FLAGS
 
@@ -206,17 +215,22 @@ def main(_):
     """
     # Preprocess dataset
     whole_dataset = np.append(train_dataset, dev_dataset, axis=0)
-    word2idx, idx2word, c_maxlen, q_maxlen = build_dict(whole_dataset, saved_params)
+    word2idx, idx2word, c_maxlen, q_maxlen, word_maxlen, char2idx, idx2char = \
+            build_dict(whole_dataset, saved_params)
     pretrained_glove, word2idx, idx2word = load_glove(word2idx, saved_params)
     if saved_params['context_maxlen'] > 0: 
         c_maxlen = saved_params['context_maxlen']
 
-    train_dataset = preprocess(train_dataset, word2idx, c_maxlen, q_maxlen)
-    dev_dataset = preprocess(dev_dataset, word2idx, c_maxlen, q_maxlen)
+    train_dataset = preprocess(
+            train_dataset, word2idx, c_maxlen, q_maxlen,word_maxlen, char2idx)
+    dev_dataset = preprocess(
+            dev_dataset, word2idx, c_maxlen, q_maxlen, word_maxlen, char2idx)
     saved_params['context_maxlen'] = c_maxlen
     saved_params['question_maxlen'] = q_maxlen
     saved_params['voca_size'] = len(word2idx)
     saved_params['dim_output'] = c_maxlen
+    saved_params['word_maxlen'] = word_maxlen
+    saved_params['char_size'] = len(char2idx)
 
     for model_idx in range(saved_params['validation_cnt']):
         # Copy params, ready for validation

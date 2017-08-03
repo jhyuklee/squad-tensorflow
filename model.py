@@ -34,6 +34,14 @@ class Basic(object):
         self.checkpoint_dir = params['checkpoint_dir']
         self.summary_dir = params['summary_dir']
         self.initializer, self.dictionary = initializer
+        
+        # character embedding parameters
+        self.word_maxlen = params['word_maxlen']
+        self.char_emb_dim = params['char_emb_dim']
+        self.filter_width = params['filter_width']
+        self.char_out = params['char_out']
+        self.char_size = params['char_size']
+        self.share_conv = params['share_conv']
 
         # input data placeholders
         self.context = tf.placeholder(tf.int32, [None, self.context_maxlen])
@@ -46,6 +54,11 @@ class Basic(object):
         self.hidden_dropout = tf.placeholder(tf.float32)
         self.embed_dropout = tf.placeholder(tf.float32)
         self.learning_rate = tf.placeholder(tf.float32)
+        self.context_char = tf.placeholder(tf.int32, 
+                [None, self.context_maxlen, self.word_maxlen])
+        self.question_char = tf.placeholder(tf.int32, 
+                [None, self.question_maxlen, self.word_maxlen])
+        self.cnn_keep_prob = tf.placeholder(tf.float32)
 
         # model settings
         self.context_mask = tf.sequence_mask(self.context_len, 

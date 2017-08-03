@@ -248,6 +248,11 @@ def run_epoch(model, dataset, epoch, base_iter, idx2word, params,
         context = dataset_item['c']
         context_raw = dataset_item['c_raw']
         context_len = dataset_item['c_len']
+        c_char_raw = dataset_item['c_char']
+        c_char = dataset_item['c_char_idx']
+        c_char_len = dataset_item['char_len']
+
+
         for qa_idx, qa in enumerate(dataset_item['qa']):
             question = qa['q']
             question_len = qa['q_len']
@@ -255,8 +260,14 @@ def run_epoch(model, dataset, epoch, base_iter, idx2word, params,
             answer = qa['a']
             answer_start = qa['a_start']
             answer_end = qa['a_end']
+            
+            q_char_raw = qa['q_char']
+            q_char = qa['q_char_idx']
+            q_char_len = qa['q_char_len']
+
             mini_batch.append([context, context_len, 
-                question, question_len, answer_start, answer_end])
+                question, question_len, answer_start, 
+                answer_end, c_char, c_char_len, q_char, q_char_len])
             ground_truths.append(answer)
             context_raws.append(context_raw)
             question_raws.append(question_raw)
@@ -270,6 +281,10 @@ def run_epoch(model, dataset, epoch, base_iter, idx2word, params,
                 batch_question_len = np.array([b[3] for b in mini_batch])
                 batch_answer_start = np.array([b[4] for b in mini_batch])
                 batch_answer_end = np.array([b[5] for b in mini_batch])
+                batch_context_char = np.array([b[6] for b in mini_batch])
+                batch_context_char_len = np.array([b[7] for b in mini_batch])
+                batch_question_char = np.array([b[8] for b in mini_batch])
+                batch_question_char_len = np.array([b[9] for b in mini_batch])
 
                 # No dropout for question learning
                 if params['mode'] == 'q':
@@ -286,18 +301,21 @@ def run_epoch(model, dataset, epoch, base_iter, idx2word, params,
                         model.rnn_dropout: params['rnn_dropout'],
                         model.hidden_dropout: params['hidden_dropout'],
                         model.embed_dropout: params['embed_dropout'],
-                        model.learning_rate: params['learning_rate']}
+                        model.learning_rate: params['learning_rate'],
+                        model.context_char: batch_context_char,
+                        model.question_char : batch_question_char,
+                        model.cnn_keep_prob : params['cnn_keep_prob']}
                 
                 # Use 1.0 dropout for test time
                 if not is_train:
                     feed_dict[model.rnn_dropout] = 1.0
                     feed_dict[model.hidden_dropout] = 1.0
                     feed_dict[model.embed_dropout] = 1.0
+                    feed_dict[model.cnn_keep_prob] = 1.0
                 
                 if params['mode'] == 'bidaf':
                     feed_dict[model.is_train] = is_train
 
-                # do not train when 'pp_only'
                 loss, start_logits, end_logits, lr, _ = sess.run(
                         [model.loss, model.start_logits, model.end_logits, 
                             model.learning_rate,
