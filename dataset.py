@@ -78,14 +78,18 @@ def tokenize_corenlp(words):
 
 
 
-def tokenize(words):
-    result = [token.replace("''", '"').replace("``", '"').lower() 
-            for token in nltk.word_tokenize(words)]
+def tokenize(words, glove_size):
+    if glove_size == '840':
+        result = [token.replace("''", '"').replace("``", '"')
+                for token in nltk.word_tokenize(words)] 
+    else:
+        result = [token.replace("''", '"').replace("``", '"').lower() 
+                for token in nltk.word_tokenize(words)] 
     return result
 
-def word2idx(words, dictionary, max_length=None):
+def word2idx(words, dictionary, glove_size,  max_length=None):
     result_idx = []
-    for word in tokenize(words):
+    for word in tokenize(words, glove_size):
         if word not in dictionary:
             result_idx.append(dictionary['UNK'])
         else:
@@ -167,7 +171,7 @@ def build_dict(dataset, params):
     for d_idx, document in enumerate(dataset):
         for p_idx, paragraph in enumerate(document['paragraphs']):
             context = paragraph['context']
-            context_words = tokenize(context)
+            context_words = tokenize(context, params['glove_size'])
             c_char = [list(word) for word in context_words]
 	    
             word2cnt(context_words, counter)
@@ -184,7 +188,7 @@ def build_dict(dataset, params):
             for qa in paragraph['qas']:
                 question = qa['question']
                 answers = qa['answers']
-                question_words = tokenize(question)
+                question_words = tokenize(question, params['glove_size'])
                 q_char = [list(word) for word in question_words]
                 
                 word2cnt(question_words, counter)
@@ -194,7 +198,7 @@ def build_dict(dataset, params):
                     question_maxlen = len(question_words)
 
                 for answer in answers:
-                    answer_words = tokenize(answer['text'])
+                    answer_words = tokenize(answer['text'], params['glove_size'])
                     word2cnt(answer_words, counter)
                     if len(answer_words) > answer_maxlen:
                         answer_maxlen = len(answer_words)
@@ -244,7 +248,7 @@ def build_dict(dataset, params):
             question_maxlen, word_maxlen, char_dict, reverse_char_dict)
 
 
-def preprocess(dataset, dictionary, c_maxlen, q_maxlen, w_maxlen, char_dictionary):
+def preprocess(dataset, dictionary, c_maxlen, q_maxlen, w_maxlen, char_dictionary, glove_size):
     cqa_set = []
     cnt = 0
 
@@ -252,12 +256,12 @@ def preprocess(dataset, dictionary, c_maxlen, q_maxlen, w_maxlen, char_dictionar
         for p_idx, paragraph in enumerate(document['paragraphs']):
             context = paragraph['context']
             cqa_item = {}
-            cqa_item['c_raw'] = tokenize(context)
+            cqa_item['c_raw'] = tokenize(context, glove_size)
             cqa_item['c_real'] = context
 
             cqa_item['c_char'] = [list(word) for word in cqa_item['c_raw']]
 	    
-            cqa_item['c'], cqa_item['c_len'] = word2idx(context, dictionary, c_maxlen)
+            cqa_item['c'], cqa_item['c_len'] = word2idx(context, dictionary, glove_size, c_maxlen)
             cqa_item['c_char_idx'], cqa_item['char_len'] = char2idx(
                     cqa_item['c_char'], char_dictionary, w_maxlen, c_maxlen)
             if len(cqa_item['c_raw']) > c_maxlen: continue
@@ -271,16 +275,16 @@ def preprocess(dataset, dictionary, c_maxlen, q_maxlen, w_maxlen, char_dictionar
                 qa_item = {}
                 question = qa['question']
                 answers = qa['answers']
-                qa_item['q_raw'] = tokenize(question)
+                qa_item['q_raw'] = tokenize(question, glove_size)
                 qa_item['q_char'] = [list(word) for word in qa_item['q_raw']]
                 qa_item['q_char_idx'], qa_item['q_char_len'] = char2idx(
                         qa_item['q_char'], char_dictionary, w_maxlen, q_maxlen)
                 qa_item['q'], qa_item['q_len'] = word2idx(
-                        question, dictionary, q_maxlen)
+                        question, dictionary, glove_size, q_maxlen)
                 qa_item['a_start'] = len(
-                        tokenize(context[:answers[0]['answer_start']]))
+                        tokenize(context[:answers[0]['answer_start']], glove_size))
                 qa_item['a_end'] = qa_item['a_start'] + len(
-                        tokenize(answers[0]['text'])) - 1
+                        tokenize(answers[0]['text'], glove_size)) - 1
                 qa_item['a'] = [a['text'] for a in answers]
                 qa_set.append(qa_item)
                 if d_idx == 0 and p_idx == 0:

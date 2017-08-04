@@ -33,6 +33,7 @@ class Basic(object):
         self.embed_trainable = params['embed_trainable']
         self.checkpoint_dir = params['checkpoint_dir']
         self.summary_dir = params['summary_dir']
+        self.softmax_dropout = params['softmax_dropout']
         self.initializer, self.dictionary = initializer
         
         # character embedding parameters
@@ -150,7 +151,9 @@ class Basic(object):
         print('start, end logits', start_logits, end_logits)
         self.optimize_loss(start_logits, end_logits)
     
-    def optimize_loss(self, start_logits, end_logits, vars=None):
+    def optimize_loss(self, start_logits, end_logits, soft_dropout, vars=None):
+        start_logits = dropout(start_logits, soft_dropout)
+        end_logits = dropout(end_logits, soft_dropout)
         start_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
             logits=start_logits, labels=self.answer_start)) 
         end_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(

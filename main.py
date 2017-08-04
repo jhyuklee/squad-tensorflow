@@ -31,6 +31,7 @@ flags.DEFINE_float("embed_dropout", 0.8, "Dropout rate of embedding layer")
 flags.DEFINE_float("learning_rate", 0.00162, "Init learning rate of the optimzier")
 flags.DEFINE_float("max_grad_norm", 5.0, "Maximum gradient to clip")
 flags.DEFINE_string("optimizer", "a", "[s]sgd [m]momentum [a]adam")
+flags.DEFINE_string("softmax_dropout", 0.8, "Dropout before softmax layer")
 
 # Run options
 flags.DEFINE_integer('train_epoch', 100, 'Training epoch')
@@ -220,9 +221,9 @@ def main(_):
         c_maxlen = saved_params['context_maxlen']
 
     train_dataset = preprocess(
-            train_dataset, word2idx, c_maxlen, q_maxlen,word_maxlen, char2idx)
+            train_dataset, word2idx, c_maxlen, q_maxlen,word_maxlen, char2idx, saved_params['glove_size'])
     dev_dataset = preprocess(
-            dev_dataset, word2idx, c_maxlen, q_maxlen, word_maxlen, char2idx)
+            dev_dataset, word2idx, c_maxlen, q_maxlen, word_maxlen, char2idx, saved_params['glove_size'])
     saved_params['context_maxlen'] = c_maxlen
     saved_params['question_maxlen'] = q_maxlen
     saved_params['voca_size'] = len(word2idx)

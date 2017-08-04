@@ -1,0 +1,84 @@
+Model m_100_201707252239_0
+learning_rate / dim_rnn_cell / batch_size / dim_perspective / dim_embed_word / context_maxlen
+[0.001620 / 100 / 32 / 20 / 300 / 100]
+F1 / EM / EP
+[0.572 / 0.456 / 7]
+
+Model m_70_201707261219_0
+learning_rate / dim_rnn_cell / batch_size / dim_perspective / dim_embed_word / context_maxlen
+[0.001620 / 100 / 32 / 20 / 300 / 70]
+F1 / EM / EP
+[0.436 / 0.344 / 5]
+
+Model m_150_201707262005_0
+learning_rate / dim_rnn_cell / batch_size / dim_perspective / dim_embed_word / context_maxlen
+[0.001620 / 100 / 32 / 20 / 300 / 150]
+F1 / EM / EP
+[0.635 / 0.509 / 11]
+
+Model m_100_201707310215_0
+learning_rate / dim_rnn_cell / batch_size / dim_perspective / dim_embed_word / context_maxlen
+[0.001620 / 100 / 32 / 20 / 300 / 100]
+F1 / EM / EP
+[0.469 / 0.348 / 6]
+
+Model m_100_201707310222_0
+learning_rate / dim_rnn_cell / batch_size / dim_perspective / dim_embed_word / context_maxlen
+[0.001620 / 100 / 32 / 20 / 300 / 100]
+F1 / EM / EP
+[0.579 / 0.446 / 7]
+
+Model m_100_201707310959_0
+learning_rate / dim_rnn_cell / batch_size / dim_perspective / dim_embed_word / context_maxlen
+[0.001620 / 100 / 32 / 20 / 300 / 100]
+F1 / EM / EP
+[0.601 / 0.477 / 11]
+
+Model m_100_201707311009_0
+learning_rate / dim_rnn_cell / batch_size / dim_perspective / dim_embed_word / context_maxlen
+[0.001620 / 100 / 32 / 20 / 300 / 100]
+F1 / EM / EP
+[0.622 / 0.498 / 12]
+
+Model m_100_201707311752_0
+learning_rate / dim_rnn_cell / batch_size / dim_perspective / dim_embed_word / context_maxlen
+[0.001620 / 100 / 32 / 20 / 300 / 100]
+F1 / EM / EP
+[0.569 / 0.438 / 6]
+
+Model m_100_201707312306_0
+learning_rate / dim_rnn_cell / batch_size / dim_perspective / dim_embed_word / context_maxlen
+[0.001620 / 100 / 32 / 20 / 300 / 100]
+F1 / EM / EP
+[0.595 / 0.467 / 6]
+
+Model m_100_201708012114_0
+learning_rate / dim_rnn_cell / batch_size / dim_perspective / dim_embed_word / context_maxlen
+[0.001620 / 100 / 32 / 20 / 300 / 100]
+F1 / EM / EP
+[0.584 / 0.465 / 7]
+
+Model m_100_201708020924_0
+learning_rate / dim_rnn_cell / batch_size / dim_perspective / dim_embed_word / context_maxlen
+[0.001620 / 100 / 32 / 20 / 300 / 100]
+F1 / EM / EP
+[0.591 / 0.473 / 7]
+
+Model m_100_201708021942_0
+learning_rate / dim_rnn_cell / batch_size / dim_perspective / dim_embed_word / context_maxlen
+[0.001620 / 100 / 32 / 20 / 300 / 100]
+F1 / EM / EP
+[0.601 / 0.487 / 9]
+
+Model m_100_201708030033_0
+learning_rate / dim_rnn_cell / batch_size / dim_perspective / dim_embed_word / context_maxlen
+[0.001620 / 100 / 32 / 20 / 300 / 100]
+F1 / EM / EP
+[0.627 / 0.504 / 10]
+
+Model m_100_201708031108_0
+learning_rate / dim_rnn_cell / batch_size / dim_perspective / dim_embed_word / context_maxlen
+[0.001620 / 100 / 32 / 20 / 300 / 100]
+F1 / EM / EP
+[0.606 / 0.490 / 9]
+
