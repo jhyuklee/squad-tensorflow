@@ -57,12 +57,13 @@ def load_glove(dictionary, params):
     pretrained_vectors.append(unknown_vector)
     pretrained_vectors.append([0.0] * params['dim_embed_word'])
     for word, word_idx in sorted(dictionary.items(), key=operator.itemgetter(1)):
-        if word in glove:
-            word2idx[word] = len(word2idx)
-            idx2word[len(word2idx)-1] = word
-            pretrained_vectors.append(glove[word])
-        else:
-            unk_cnt += 1
+        if word != 'UNK' and word !='PAD':
+            if word in glove:
+                word2idx[word] = len(word2idx)
+                idx2word[len(word2idx)-1] = word
+                pretrained_vectors.append(glove[word])
+            else:
+                unk_cnt += 1
 
     print('apple:', word2idx['apple'], glove['apple'][:5])
     print('Pretrained vectors', np.asarray(pretrained_vectors).shape, 'unk', unk_cnt)

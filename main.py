@@ -217,6 +217,7 @@ def main(_):
     word2idx, idx2word, c_maxlen, q_maxlen, word_maxlen, char2idx, idx2char = \
             build_dict(whole_dataset, saved_params)
     pretrained_glove, word2idx, idx2word = load_glove(word2idx, saved_params)
+    print("glove shape", pretrained_glove.shape)
     if saved_params['context_maxlen'] > 0: 
         c_maxlen = saved_params['context_maxlen']
 
