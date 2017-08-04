@@ -291,6 +291,8 @@ def run_epoch(model, dataset, epoch, base_iter, idx2word, params,
                     params['rnn_dropout'] = 1.0
                     params['hidden_dropout'] = 1.0
                     params['embed_dropout'] = 1.0
+                    parmas['cnn_keep_prob'] = 1.0
+                    params['softmax_dropout'] = 1.0
 
                 feed_dict = {model.context: batch_context,
                         model.context_len: batch_context_len,
@@ -304,7 +306,8 @@ def run_epoch(model, dataset, epoch, base_iter, idx2word, params,
                         model.learning_rate: params['learning_rate'],
                         model.context_char: batch_context_char,
                         model.question_char : batch_question_char,
-                        model.cnn_keep_prob : params['cnn_keep_prob']}
+                        model.cnn_keep_prob : params['cnn_keep_prob'],
+                        model.softmax_dropout : parmas['softmax_dropout']}
                 
                 # Use 1.0 dropout for test time
                 if not is_train:
@@ -312,6 +315,7 @@ def run_epoch(model, dataset, epoch, base_iter, idx2word, params,
                     feed_dict[model.hidden_dropout] = 1.0
                     feed_dict[model.embed_dropout] = 1.0
                     feed_dict[model.cnn_keep_prob] = 1.0
+                    feed_dict[model.softmax_dropout] = 1.0
                 
                 if params['mode'] == 'bidaf':
                     feed_dict[model.is_train] = is_train

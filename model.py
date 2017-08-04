@@ -33,7 +33,6 @@ class Basic(object):
         self.embed_trainable = params['embed_trainable']
         self.checkpoint_dir = params['checkpoint_dir']
         self.summary_dir = params['summary_dir']
-        self.softmax_dropout = params['softmax_dropout']
         self.initializer, self.dictionary = initializer
         
         # character embedding parameters
@@ -60,6 +59,7 @@ class Basic(object):
         self.question_char = tf.placeholder(tf.int32, 
                 [None, self.question_maxlen, self.word_maxlen])
         self.cnn_keep_prob = tf.placeholder(tf.float32)
+        self.softmax_dropout = tf.placeholder(tf.float32)
 
         # model settings
         self.context_mask = tf.sequence_mask(self.context_len, 
