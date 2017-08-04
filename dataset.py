@@ -8,6 +8,7 @@ import operator
 import collections
 import numpy as np
 import nltk
+from utils import process_tokens
 from pycorenlp import StanfordCoreNLP 
 
 nlp = StanfordCoreNLP('http://localhost:9000')
@@ -81,7 +82,8 @@ def tokenize_corenlp(words):
 def tokenize(words):
     result = [token.replace("''", '"').replace("``", '"').lower() 
             for token in nltk.word_tokenize(words)]
-    return result
+    result = [process_tokens(tokens) for tokens in [result]]  # process tokens
+    return result[0]
 
 def word2idx(words, dictionary, max_length=None):
     result_idx = []

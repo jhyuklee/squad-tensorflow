@@ -25,9 +25,6 @@ class BiDAF(Basic):
         
         super(BiDAF, self).__init__(params, initializer)
 
-    #def character_embedding_layer():
-
-    #def word_embedding_layer():
 
     def init_bidaf(self):
         self.cell_fw = BasicLSTMCell(self.dim_rnn_cell, state_is_tuple=True)
@@ -58,7 +55,7 @@ class BiDAF(Basic):
         self.x_mask = tf.sequence_mask(lengths=self.context_len, maxlen=self.context_maxlen)
         self.x_mask = tf.expand_dims(self.x_mask, 1)
         self.q_mask = tf.sequence_mask(lengths=self.question_len, maxlen=self.question_maxlen)
-        
+       
         context_embed = dropout(embedding_lookup(
                 inputs=self.context,
                 voca_size=self.voca_size,
@@ -75,18 +72,78 @@ class BiDAF(Basic):
                 trainable=self.embed_trainable,
                 reuse=True, scope='Word'), self.embed_dropout)
         
-        self.N = context_embed.get_shape().as_list()[0]
-        self.JX = context_embed.get_shape().as_list()[1]
-        self.JQ = question_embed.get_shape().as_list()[1]
+        char_context_embed, char_question_embed = self.character_embedding_layer(
+                self.context_char, self.question_char,
+                self.char_size, self.char_emb_dim,
+                self.char_out, self.filter_width,
+                self.cnn_keep_prob, self.share_conv)
+
+        context_embed_input = dropout(tf.concat(
+                [context_embed, char_context_embed],2), self.embed_dropout)
+        question_embed_input = dropout(tf.concat(
+                [question_embed, char_question_embed],2),self.embed_dropout)
+
+        self.N = context_embed_input.get_shape().as_list()[0]
+        self.JX = context_embed_input.get_shape().as_list()[1]
+        self.JQ = question_embed_input.get_shape().as_list()[1]
         self.con_len = tf.expand_dims(self.context_len, 1)
-        xx = tf.expand_dims(context_embed, 1)
-        qq = question_embed
+        xx = tf.expand_dims(context_embed_input, 1)
+        qq = question_embed_input
         if self.highway:
             with tf.variable_scope("highway"):
                 xx = highway_network(xx, self.highway_num_layers, True, wd=self.wd, is_train=self.is_train)
                 tf.get_variable_scope().reuse_variables()
                 qq = highway_network(qq, self.highway_num_layers, True, wd=self.wd, is_train=self.is_train)
         return xx, qq
+    
+
+    def character_embedding_layer(self, context_char, question_char, char_size, 
+            char_emb_dim, char_out, filter_width, cnn_keep_prob, share_conv):
+        
+        def char_conv(inputs, emb_dim, output_dim, 
+                filter_width, padding,keep_prob = 1.0,scope = None):
+            with tf.variable_scope('conv' or scope):
+                num_channels = emb_dim
+                with tf.variable_scope('xx/conv1d_5'):
+                    conv_filter = tf.get_variable("filter", 
+                            shape=[1,filter_width, num_channels, output_dim], 
+                            dtype=tf.float32)
+                    bias = tf.get_variable("bias", shape=[output_dim], dtype=tf.float32)
+                strides = [1,1,1,1]
+                inputs = dropout(inputs, keep_prob)
+                conv = tf.nn.conv2d(inputs, conv_filter, strides, padding) + bias
+                conv_output = tf.reduce_max(tf.nn.relu(conv),2)
+                return conv_output
+        
+        with tf.variable_scope("emb"):
+            with tf.variable_scope("emb_var"):
+                char_emb_matrix = tf.get_variable(
+                        "char_emb_mat", shape = [(char_size),char_emb_dim],
+                        dtype = tf.float32, trainable = True)
+                   # char_emb_pad = tf.constant(([[0.0]*self.char_emb_dim]),
+                   #    dtype = tf.float32)
+                   # char_emb_matrix = tf.concat([char_emb_pad,char_emb_matrix],0)
+
+            char_context_emb = tf.nn.embedding_lookup(char_emb_matrix, context_char)
+            char_question_emb = tf.nn.embedding_lookup(char_emb_matrix, question_char)
+
+            with tf.variable_scope('char'):
+                char_conv_context = char_conv(
+                        char_context_emb,char_emb_dim,char_out,
+                        filter_width,'VALID',
+                        scope = 'char_context', keep_prob = cnn_keep_prob)
+                if share_conv:
+                    tf.get_variable_scope().reuse_variables()
+                    char_conv_question = char_conv(
+                            char_question_emb,char_emb_dim, char_out,
+                            filter_width,'VALID', 
+                            scope = 'char_context', keep_prob = cnn_keep_prob) 
+                else:
+                    char_conv_question = char_conv(
+                              char_question_emb,char_emb_dem, self.char_out,
+                            filter_width,'VALID', 
+                            scope = 'char_question', keep_prob = cnn_keep_prob)
+        return char_conv_context, char_conv_question
 
 
     def contextual_embedding_layer(self, xx, qq, reuse=None):
@@ -214,17 +271,12 @@ class BiDAF(Basic):
         xx, qq = self.init_bidaf()
         H, U = self.contextual_embedding_layer(xx, qq)
         print('# Contextual_Embedding_layer', H, U)
-        #H = tf.Print(H, [H], "H : ")
         G = self.attention_flow_layer(H, U)
         print('# Attention_Flow_layer', G)
-        #G = tf.Print(G, [G], "G : ")
         M = self.modeling_layer(G)
         print('# Modeling_layer', M)
-        #M = tf.Print(M, [M], "M : ")
         self.start_logits, self.end_logits = self.output_layer(G, M)
         print('# Output_layer', self.start_logits, self.end_logits)
-        #self.start_logits = tf.Print(self.start_logits, [self.start_logits], "start_logits : ", summarize=200)
-        #self.end_logits = tf.Print(self.end_logits, [self.end_logits], "end_logits : ", summarize=200)
         print(tf.global_variables())
         print(tf.trainable_variables())
         self.optimize_loss(self.start_logits, self.end_logits)
