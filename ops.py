@@ -11,10 +11,14 @@ def dropout(x, keep_prob):
 
 def lstm_cell(cell_dim, layer_num, keep_prob):
     with tf.variable_scope('LSTM_Cell') as scope:
-        cell = tf.contrib.rnn.BasicLSTMCell(
-                cell_dim, forget_bias=1.0, activation=tf.tanh, state_is_tuple=True)
-        cell = tf.contrib.rnn.DropoutWrapper(cell, output_keep_prob=keep_prob)
-        return tf.contrib.rnn.MultiRNNCell([cell] * layer_num, state_is_tuple=True)
+        def get_cell(cd, kp):
+            cell = tf.contrib.rnn.BasicLSTMCell(
+                    cd, forget_bias=1.0, activation=tf.tanh, state_is_tuple=True)
+            cell = tf.contrib.rnn.DropoutWrapper(cell, output_keep_prob=kp)
+            return cell
+        stacked_rnn = tf.contrib.rnn.MultiRNNCell([get_cell(cell_dim, keep_prob)
+            for _ in range(layer_num)])
+        return stacked_rnn
 
 def gru_cell(cell_dim, layer_num, keep_prob):
     with tf.variable_scope('GRU_Cell') as scope:

@@ -187,26 +187,33 @@ def run_paraphrase(question, question_len, context, context_len,
     # Use REINFORE with original em, f1 as baseline (per example)
     rewards = np.sum([em_s, f1_s], axis=0) / 2
     baselines = np.sum([baseline_em, baseline_f1], axis=0) / 2
-    # advantages = np.clip(
-    #         rewards / (baselines + 1e-5) - 1, -1, params['rb_clip']) + rewards
+    advantages = (np.clip(
+            rewards / (baselines + 1e-5) - 1, -1, params['rb_clip']) * 0.9
+            + rewards * 0.1)
     """
     advantages = rewards - baselines
-    """
     advantages = []
-    smry_advs = []
     for r, b, ed in zip(rewards, baselines, edit_distances):
         edr = ed / 100.0
         if r > b:
             advantages.append(1)
-            smry_advs.append(1)
         elif r == b:
             if ed > 0:
                 advantages.append(0.5)
             else:
                 advantages.append(0)
-            smry_advs.append(0)
         elif r < b:
             advantages.append(-1)
+        else:
+            assert False, 'Invalid r, b'
+    """
+    smry_advs = []
+    for r, b in zip(rewards, baselines):
+        if r > b:
+            smry_advs.append(1)
+        elif r == b:
+            smry_advs.append(0)
+        elif r < b:
             smry_advs.append(-1)
         else:
             assert False, 'Invalid r, b'

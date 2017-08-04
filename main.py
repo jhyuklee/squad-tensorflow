@@ -11,8 +11,8 @@ import os
 from model import Basic
 from mpcm import MPCM
 from ql_mpcm import QL_MPCM
-from bidaf import BiDAF
-from my_bidaf import My_BiDAF
+# from bidaf import BiDAF
+# from my_bidaf import My_BiDAF
 from time import gmtime, strftime
 from dataset import read_data, build_dict, load_glove, preprocess, load_lm
 from run import run_epoch
@@ -28,7 +28,7 @@ flags.DEFINE_integer("context_maxlen", 0, "Predefined context length (0 for max)
 flags.DEFINE_float("rnn_dropout", 0.5, "Dropout of RNN cell")
 flags.DEFINE_float("hidden_dropout", 0.5, "Dropout rate of hidden layer")
 flags.DEFINE_float("embed_dropout", 0.8, "Dropout rate of embedding layer")
-flags.DEFINE_float("learning_rate", 1e-4, "Init learning rate of the optimzier")
+flags.DEFINE_float("learning_rate", 1e-5, "Init learning rate of the optimzier")
 flags.DEFINE_float("max_grad_norm", 5.0, "Maximum gradient to clip")
 flags.DEFINE_string("optimizer", "a", "[s]sgd [m]momentum [a]adam")
 

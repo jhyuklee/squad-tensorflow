@@ -46,16 +46,19 @@ class QL_MPCM(MPCM):
             tr_question = tf.transpose(n_question, [0, 2, 1])
             sim_mat_dim = (self.dim_embed_word + self.char_out 
                     if self.similarity_q == 'e' else self.dim_rnn_cell * 2)
-            # sim_mat = tf.get_variable('sim_mat',
-            #         initializer=tf.eye(sim_mat_dim), dtype=tf.float32)
-            sim_mat = tf.get_variable('sim_mat', [sim_mat_dim, sim_mat_dim],
-                    initializer=tf.random_normal_initializer(), dtype=tf.float32)
+            sim_mat = tf.get_variable('sim_mat',
+                    initializer=tf.eye(sim_mat_dim), dtype=tf.float32)
+            # sim_mat = tf.get_variable('sim_mat', [sim_mat_dim, sim_mat_dim],
+            #         initializer=tf.random_normal_initializer(), dtype=tf.float32)
             b_sim_mat = tf.scan(lambda a, x: tf.identity(sim_mat), 
                     context, tf.zeros([sim_mat_dim, sim_mat_dim], 
                     dtype=tf.float32)) 
             tmp_cont_sim = tf.matmul(n_context, b_sim_mat)
-            similarity = tf.matmul(tmp_cont_sim, tr_question)
-            self.c_sim = tf.argmax(tf.transpose(similarity, [0, 2, 1]), axis=2)
+            similarity = tf.transpose(tf.matmul(tmp_cont_sim, tr_question), [0, 2, 1])
+            self.c_sim = tf.argmax(similarity, axis=2)
+            # self.c_sim = tf.reshape(tf.multinomial(
+            #         tf.reshape(tf.nn.softmax(similarity),
+            #             [-1, self.context_maxlen]), 1), [-1, self.question_maxlen])
         
         if self.policy_c == 'e':
             selected_context = tf.scan(lambda a, x: tf.gather(x[0], x[1]),
@@ -69,11 +72,17 @@ class QL_MPCM(MPCM):
                     trainable=self.embed_trainable,
                     reuse=True, scope='Word'), self.embed_dropout)
         else:
+            """
             candidate = tf.scan(lambda a, x: tf.gather(x[0], x[1]),
                     (context_rep, self.c_sim), 
                     tf.zeros([self.question_maxlen, self.dim_rnn_cell * 2], 
                         dtype=tf.float32))
-            
+            """
+            soft_sim = tf.nn.softmax(similarity)
+            expnd_sim = tf.expand_dims(tf.transpose(soft_sim, [1, 0, 2]), -1)
+            expnd_rep = tf.expand_dims(context_rep, 0)
+            cand_sum = tf.reduce_sum(tf.multiply(expnd_sim, expnd_rep), 2)
+            candidate = tf.transpose(cand_sum, [1, 0, 2])
 
         return candidate
     
@@ -95,8 +104,6 @@ class QL_MPCM(MPCM):
                 # question = tf.concat(axis=2, values=[question, candidate, c_fb])
                 question = tf.concat(axis=2, values=[question, candidate])
             
-            print('qq', question)
-
             # Bidirectional
             fw_cell = lstm_cell(
                     self.pp_dim_rnn_cell, self.pp_rnn_layer, self.rnn_dropout)
