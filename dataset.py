@@ -9,6 +9,7 @@ import collections
 import numpy as np
 import nltk
 from pycorenlp import StanfordCoreNLP 
+from utils import process_tokens
 
 nlp = StanfordCoreNLP('http://localhost:9000')
 nltk.download('punkt')
@@ -71,11 +72,15 @@ def load_glove(dictionary, params):
     return np.asarray(pretrained_vectors).astype(np.float32), word2idx, idx2word 
 
 
-def tokenize_corenlp(words):
+def tokenize_corenlp(words, glove_size):
     output = nlp.annotate(
             words,properties = {'annotators':'tokenize','outputFormat':'json'})
-    result = [w['word'].replace("''",'"').replace("``",'"') for w in output['tokens']]
-    return result    
+    if glove_size == '840':
+        result = [w['word'].replace("''",'"').replace("``",'"') for w in output['tokens']]
+    else : 
+        result = [w['word'].replace("''",'"').replace("``",'"').lower for w in output['tokens']]
+    result = [process_tokens(tokens) for tokens in [result]]
+    return result[0]    
 
 
 
@@ -86,7 +91,8 @@ def tokenize(words, glove_size):
     else:
         result = [token.replace("''", '"').replace("``", '"').lower() 
                 for token in nltk.word_tokenize(words)] 
-    return result
+    result = [process_tokens(tokens) for tokens in [result]]
+    return result[0]
 
 def word2idx(words, dictionary, glove_size,  max_length=None):
     result_idx = []
