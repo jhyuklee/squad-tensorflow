@@ -152,8 +152,6 @@ class Basic(object):
         self.optimize_loss(start_logits, end_logits)
     
     def optimize_loss(self, start_logits, end_logits, soft_dropout, vars=None):
-        start_logits = dropout(start_logits, soft_dropout)
-        end_logits = dropout(end_logits, soft_dropout)
         start_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
             logits=start_logits, labels=self.answer_start)) 
         end_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
