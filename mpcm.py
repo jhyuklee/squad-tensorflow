@@ -164,8 +164,7 @@ class MPCM(Basic):
             """
             start_logits = linear(inputs=inputs,
                 output_dim=1,
-                scope='Output_s',
-		dropout_rate = self.softmax_dropout)
+                scope='Output_s')
             start_logits = tf.reshape(start_logits, [-1, self.dim_output])
             
             """
@@ -177,8 +176,7 @@ class MPCM(Basic):
             """
             end_logits = linear(inputs=inputs,
                 output_dim=1,
-                scope='Output_e',
-		dropout_rate = self.softmax_dropout)
+                scope='Output_e')
             end_logits = tf.reshape(end_logits, [-1, self.dim_output])
             
             # Masking start, end logits
@@ -212,7 +210,7 @@ class MPCM(Basic):
                     dtype = tf.float32, trainable = True)
             pad = tf.get_variable(
                     "pad", shape = [1,char_emb_dim],
-                    dtype = tf.float32, trainable = True)
+                    dtype = tf.float32, trainable = False)
             char_emb_matrix = tf.concat([unk, pad, char_emb_matrix],0)
                # char_emb_pad = tf.constant(([[0.0]*self.char_emb_dim]),
                #    dtype = tf.float32)
@@ -308,7 +306,7 @@ class MPCM(Basic):
             print('# Aggregation_layer', aggregates)        
 
         with tf.device('/gpu:0'):
-	    aggregates = dropout(aggregates, self.softmax_dropout)
+            aggregates = dropout(aggregates, self.softmax_dropout)
             self.start_logits, self.end_logits = self.prediction_layer(aggregates)
             print('# Prediction_layer', self.start_logits, self.end_logits)
         
