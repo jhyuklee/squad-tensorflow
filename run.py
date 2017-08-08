@@ -307,7 +307,7 @@ def run_epoch(model, dataset, epoch, base_iter, idx2word, params,
                         model.context_char: batch_context_char,
                         model.question_char : batch_question_char,
                         model.cnn_keep_prob : params['cnn_keep_prob'],
-                        model.softmax_dropout : parmas['softmax_dropout']}
+                        model.softmax_dropout : params['softmax_dropout']}
                 
                 # Use 1.0 dropout for test time
                 if not is_train:
