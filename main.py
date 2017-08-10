@@ -14,7 +14,8 @@ from ql_mpcm import QL_MPCM
 from bidaf import BiDAF
 from my_bidaf import My_BiDAF
 from time import gmtime, strftime
-from dataset import read_data, build_dict, load_glove, preprocess, load_lm
+from dataset import read_data, load_glove, preprocess, load_lm, build_dict
+#from data_test import build_dict
 from run import run_epoch
 
 flags = tf.app.flags

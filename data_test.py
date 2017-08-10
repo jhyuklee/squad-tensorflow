@@ -79,19 +79,11 @@ def tokenize_corenlp(words):
 
 
 
-def tokenize(context):
-    sent_tokenize = nltk.sent_tokenize
-    def word_tokenize(tokens):
-        return [token.replace("''", '"').replace("``", '"')
-                for token in nltk.word_tokenize(tokens)]
-    
-    result = list(map(word_tokenize, sent_tokenize(context)))
-    result = [process_tokens(tokens) for tokens in result]  # process tokens
-    res = []
-    for s in result:
-        for w in s:
-            res.append(w)
-    return res
+def tokenize(words):
+    result = [token.replace("''", '"').replace("``", '"') 
+            for token in nltk.word_tokenize(words)]
+    result = [process_tokens(tokens) for tokens in [result]]  # process tokens
+    return result[0]
 
 def word2idx(words, dictionary, max_length=None):
     result_idx = []
@@ -177,9 +169,12 @@ def build_dict(dataset, params):
     for d_idx, document in enumerate(dataset):
         for p_idx, paragraph in enumerate(document['paragraphs']):
             context = paragraph['context']
-            context = context.replace("''", '" ')
-            context = context.replace("``", '" ')
             context_words = tokenize(context)
+            context_seo = context_split_seo(context)
+            if context_words != context_seo:
+                print("%%% not match !!!")
+                print("our : ", context_words, len(context_words))
+                print("seo : ", context_seo, len(context_seo))
             c_char = [list(word) for word in context_words]
 	    
             word2cnt(context_words, counter)
@@ -256,59 +251,178 @@ def build_dict(dataset, params):
             question_maxlen, word_maxlen, char_dict, reverse_char_dict)
 
 
-def preprocess(dataset, dictionary, c_maxlen, q_maxlen, w_maxlen, char_dictionary):
-    cqa_set = []
-    cnt = 0
-
-    for d_idx, document in enumerate(dataset):
-        for p_idx, paragraph in enumerate(document['paragraphs']):
-            context = paragraph['context']
-            cqa_item = {}
-            cqa_item['c_raw'] = tokenize(context)
-            cqa_item['c_real'] = context
-
-            cqa_item['c_char'] = [list(word) for word in cqa_item['c_raw']]
-	    
-            cqa_item['c'], cqa_item['c_len'] = word2idx(context, dictionary, c_maxlen)
-            cqa_item['c_char_idx'], cqa_item['char_len'] = char2idx(
-                    cqa_item['c_char'], char_dictionary, w_maxlen, c_maxlen)
-            if len(cqa_item['c_raw']) > c_maxlen: continue
-            if d_idx == 0 and p_idx == 0:
-                # print(context)
-                pass
-            
-            qa_set = []
-            for qa in paragraph['qas']:
-                cnt += 1
-                qa_item = {}
-                question = qa['question']
-                answers = qa['answers']
-                qa_item['q_raw'] = tokenize(question)
-                qa_item['q_char'] = [list(word) for word in qa_item['q_raw']]
-                qa_item['q_char_idx'], qa_item['q_char_len'] = char2idx(
-                        qa_item['q_char'], char_dictionary, w_maxlen, q_maxlen)
-                qa_item['q'], qa_item['q_len'] = word2idx(
-                        question, dictionary, q_maxlen)
-                qa_item['a_start'] = len(
-                        tokenize(context[:answers[0]['answer_start']]))
-                qa_item['a_end'] = qa_item['a_start'] + len(
-                        tokenize(answers[0]['text'])) - 1
-                qa_item['a'] = [a['text'] for a in answers]
-                qa_set.append(qa_item)
-                if d_idx == 0 and p_idx == 0:
-                    # print(question)
-                    # print(answers)
-                    pass
-            cqa_item['qa'] = qa_set
-            cqa_set.append(cqa_item)
-
-    # print('\nis preprocessed as \n')
-    # print(cqa_set[0])
-    print('Passage: %d, Question: %d' % (len(cqa_set), cnt))
-
-    return cqa_set
 
 
-def load_lm(lm_path):
-    pass
+def get_word2vec(args, word_counter):
+    glove_path = os.path.join(args.glove_dir, "glove.{}.{}d.txt".format(args.glove_corpus, args.glove_vec_size))
+    sizes = {'6B': int(4e5), '42B': int(1.9e6), '840B': int(2.2e6), '2B': int(1.2e6)}
+    total = sizes[args.glove_corpus]
+    word2vec_dict = {}
+    with open(glove_path, 'r', encoding='utf-8') as fh:
+        for line in tqdm(fh, total=total):
+            array = line.lstrip().rstrip().split(" ")
+            word = array[0]
+            vector = list(map(float, array[1:]))
+            if word in word_counter:
+                word2vec_dict[word] = vector
+            elif word.capitalize() in word_counter:
+                word2vec_dict[word.capitalize()] = vector
+            elif word.lower() in word_counter:
+                word2vec_dict[word.lower()] = vector
+            elif word.upper() in word_counter:
+                word2vec_dict[word.upper()] = vector
+    json.dump(word2vec_dict, open('word_dict.json','a'))
+    print("{}/{} of word vocab have corresponding vectors in {}".format(len(word2vec_dict), len(word_counter), glove_path))
+    return word2vec_dict
+
+
+
+def context_split_seo(context):
+    sent_tokenize = nltk.sent_tokenize
+    def word_tokenize(tokens):
+        return [token.replace("''", '"').replace("``", '"') for token in nltk.word_tokenize(tokens)]
+    # wordss
+    context = context.replace("''", '" ')
+    context = context.replace("``", '" ')
+    xi = list(map(word_tokenize, sent_tokenize(context)))
+    xi = [process_tokens(tokens) for tokens in xi]  # process tokens
+    res = []
+    for s in xi:
+        for w in s:
+            res.append(w)
+    # given xi, add chars
+    cxi = [[list(xijk) for xijk in xij] for xij in xi]
+    return res
+
+
+def prepro_each(args, data_type, start_ratio=0.0, stop_ratio=1.0, out_name="default", in_path=None):
+    if args.tokenizer == "PTB":
+        import nltk
+        sent_tokenize = nltk.sent_tokenize
+        def word_tokenize(tokens):
+            return [token.replace("''", '"').replace("``", '"') for token in nltk.word_tokenize(tokens)]
+    elif args.tokenizer == 'Stanford':
+        from my.corenlp_interface import CoreNLPInterface
+        interface = CoreNLPInterface(args.url, args.port)
+        sent_tokenize = interface.split_doc
+        word_tokenize = interface.split_sent
+    else:
+        raise Exception()
+
+    if not args.split:
+        sent_tokenize = lambda para: [para]
+
+    source_path = in_path or os.path.join(args.source_dir, "{}-{}v1.1.json".format(data_type, args.suffix))
+    source_data = json.load(open(source_path, 'r'))
+
+    q, cq, y, rx, rcx, ids, idxs = [], [], [], [], [], [], []
+    na = []
+    cy = []
+    x, cx = [], []
+    answerss = []
+    p = []
+    word_counter, char_counter, lower_word_counter = Counter(), Counter(), Counter()
+    start_ai = int(round(len(source_data['data']) * start_ratio))
+    stop_ai = int(round(len(source_data['data']) * stop_ratio))
+    for ai, article in enumerate(tqdm(source_data['data'][start_ai:stop_ai])):
+        xp, cxp = [], []
+        pp = []
+        x.append(xp)
+        cx.append(cxp)
+        p.append(pp)
+        for pi, para in enumerate(article['paragraphs']):
+            # wordss
+            context = para['context']
+            context = context.replace("''", '" ')
+            context = context.replace("``", '" ')
+            xi = list(map(word_tokenize, sent_tokenize(context)))
+            xi = [process_tokens(tokens) for tokens in xi]  # process tokens
+            # given xi, add chars
+            cxi = [[list(xijk) for xijk in xij] for xij in xi]
+            xp.append(xi)
+            cxp.append(cxi)
+            pp.append(context)
+
+            for xij in xi:
+                for xijk in xij:
+                    word_counter[xijk] += len(para['qas'])
+                    lower_word_counter[xijk.lower()] += len(para['qas'])
+                    for xijkl in xijk:
+                        char_counter[xijkl] += len(para['qas'])
+
+            rxi = [ai, pi]
+            assert len(x) - 1 == ai
+            assert len(x[ai]) - 1 == pi
+            for qa in para['qas']:
+                # get words
+                qi = word_tokenize(qa['question'])
+                qi = process_tokens(qi)
+                cqi = [list(qij) for qij in qi]
+                yi = []
+                cyi = []
+                answers = []
+                for answer in qa['answers']:
+                    answer_text = answer['text']
+                    answers.append(answer_text)
+                    answer_start = answer['answer_start']
+                    answer_stop = answer_start + len(answer_text)
+                    # TODO : put some function that gives word_start, word_stop here
+                    yi0, yi1 = get_word_span(context, xi, answer_start, answer_stop)
+                    # yi0 = answer['answer_word_start'] or [0, 0]
+                    # yi1 = answer['answer_word_stop'] or [0, 1]
+                    assert len(xi[yi0[0]]) > yi0[1]
+                    assert len(xi[yi1[0]]) >= yi1[1]
+                    w0 = xi[yi0[0]][yi0[1]]
+                    w1 = xi[yi1[0]][yi1[1]-1]
+                    i0 = get_word_idx(context, xi, yi0)
+                    i1 = get_word_idx(context, xi, (yi1[0], yi1[1]-1))
+                    cyi0 = answer_start - i0
+                    cyi1 = answer_stop - i1 - 1
+                    # print(answer_text, w0[cyi0:], w1[:cyi1+1])
+                    assert answer_text[0] == w0[cyi0], (answer_text, w0, cyi0)
+                    assert answer_text[-1] == w1[cyi1]
+                    assert cyi0 < 32, (answer_text, w0)
+                    assert cyi1 < 32, (answer_text, w1)
+
+                    yi.append([yi0, yi1])
+                    cyi.append([cyi0, cyi1])
+
+                if len(qa['answers']) == 0:
+                    yi.append([(0, 0), (0, 1)])
+                    cyi.append([0, 1])
+                    na.append(True)
+                else:
+                    na.append(False)
+
+                for qij in qi:
+                    word_counter[qij] += 1
+                    lower_word_counter[qij.lower()] += 1
+                    for qijk in qij:
+                        char_counter[qijk] += 1
+
+                q.append(qi)
+                cq.append(cqi)
+                y.append(yi)
+                cy.append(cyi)
+                rx.append(rxi)
+                rcx.append(rxi)
+                ids.append(qa['id'])
+                idxs.append(len(idxs))
+                answerss.append(answers)
+
+        if args.debug:
+            break
+
+    word2vec_dict = get_word2vec(args, word_counter)
+    lower_word2vec_dict = get_word2vec(args, lower_word_counter)
+
+    # add context here
+    data = {'q': q, 'cq': cq, 'y': y, '*x': rx, '*cx': rcx, 'cy': cy,
+            'idxs': idxs, 'ids': ids, 'answerss': answerss, '*p': rx, 'na': na}
+    shared = {'x': x, 'cx': cx, 'p': p,
+              'word_counter': word_counter, 'char_counter': char_counter, 'lower_word_counter': lower_word_counter,
+              'word2vec': word2vec_dict, 'lower_word2vec': lower_word2vec_dict}
+
+    print("saving ...")
+    save(args, data, shared, out_name)
 
