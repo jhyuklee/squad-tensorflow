@@ -2,7 +2,7 @@ SQuAD-tensorflow
 ====================================================================
 Implementation of several models for SQuAD
 - Basic
-- Multi-Perspective Context Matching (IBM Watson)
+- Multi-Perspective Context Matching (IBM)
 - TBD
 
 ## Requirements
