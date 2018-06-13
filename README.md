@@ -1,9 +1,9 @@
 SQuAD-tensorflow
 ====================================================================
 Implementation of several models for SQuAD
-- Basic
+- Basic LSTM based Model
 - Multi-Perspective Context Matching (IBM)
-- TBD
+- BiDAF
 
 ## Requirements
 * Python 3.4.3 or higher
